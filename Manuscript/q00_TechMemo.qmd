@@ -1,0 +1,247 @@
+---
+title: "Side-by-Side Survey Catchability Studies: Cooperative Research to Estimate Survey Catchability for Tanner Crab in the Eastern Bering Sea"
+author: "William T. Stockhausen"
+institute: "AFSC/NMFS/NOAA"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+bibliography: ../Bibliography/bib_SBS-TannerCrab-doc.bib
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 8
+    fig-asp: 1.4
+    fig-dpi: 100
+    embed-resources: true
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+echo: false
+warning: false
+results: 'hide'
+keep-md: false
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: TechMemo_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_TechMemo
+#| results: 'asis'
+  require(ggplot2);
+  require(kableExtra);
+  require(tables);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) cat("dirThs =",child_path$peek(),"\n\n")
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+  ##--
+```
+
+```{r}
+#| label: fig-SurveyGrid
+  grids = tcsamSurveyData::gisGetSurveyGridLayers();
+  bmls = tcsamSurveyData::gg_GetBasemapLayers();
+  p = ggplot() + bmls$land + bmls$bathym + 
+         geom_sf(data=grids$grid,fill=NA) + 
+         geom_sf(data=grids$stations) + 
+         bmls$map_scale + bmls$theme;
+  cap = paste0("Standard NMFS eastern Bering Sea shelf bottom trawl survey grid. ",
+               "Rectangular areas are approximately 20 nm x 20 nm. ",
+               'Circles represent "corner" stations for higher sampling densities. ',
+               "Dots indicate nominal station locations.",
+               "Blue lines indicate bathymetric contours (50m, 100m, 200m,...).")
+  lbl = wtsQMD::getLabel();
+  pth = wtsQMD::getFigFN();
+  lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=6.5,dpi=def_dpi);
+  ggsave(pth,plot=p,width=6.5,height=6,units="in",dpi=def_dpi);
+```
+
+## Introduction {#sec-introduction}
+
+Scientific surveys conducted to estimate current population size and changes in abundance over time for a given species provide important information to inform decisions on conservation and management, but most are not without challenges to interpret the resulting raw data (counts or biomass of individuals, perhaps classified into different population categories) in terms of the population of interest. In the eastern Bering Sea (EBS), the National Marine Fisheries Service's Alaska Fisheries Science Center has conducted an annual survey of the EBS shelf using standardized benthic trawl gear and sampling locations since 1982 to quantify trends in abundance and biomass of commercially--and environmentally--important marine species [Figure [-@fig-SurveyGrid]; @REF]. Among other uses, these data provide a critically-important resource to stock assessment scientists and fishery managers to determine the status of exploited groundfish and crab stocks, as well as characterize general ecosystem health.
+
+The EBS Shelf Survey is inherently a multi-species survey designed to simultaneously provide information on a variety of species and ecosystem components, and thus may not be the "optimal" approach to quantify abundance and changes in abundance for any individual species. In particular, the trawl gear used in the survey is size selective for many species [@REF], meaning that the probability of capturing an individual in the path of the trawl gear depends on its size. This size-dependent probability of capture is referred to here as "haul-level selectivity." For a given species, smaller individuals in the path of the gear may be less likely to be caught than larger individuals because they can slip through the mesh of the trawl net. Conversely, large mobile individuals in the path of the gear may be less likely to be caught than intermediate-sized individuals because they are able to outswim it. Additionally, intermediate-sized individuals may engage in behaviors such as ducking under the trawl footrope that enable some fraction to escape capture. Thus, a survey haul provides *relative* information on abundance-at-size at the sampling location for a given species. Given knowledge of the haul-level selectivity for the species, however, the observed relative abundance-at-size can be re-scaled to an estimate of *absolute* abundance-at-size by dividing the observed abundance by the corresponding value of selectivity at each size.
+
+Information on species abundance from multiple hauls conducted across an area of interest by a survey can be combined to estimate aggregated abundance for the species within the surveyed area...
+
+Importance to stock assessment--estimates of selectivity confounded with estimates of other processes...
+
+### Side-by-side haul studies {#sec-SBS-theory}
+
+Side-by-side haul (SBS) studies are one approach to characterizing the selectivity of one trawl gear relative to another [@REF]. At its simplest, a SBS study uses paired hauls to simultaneously sample the size distribution of a targeted species at a given location with the target and reference gears. Conceptually, the ratio of the observed size distribution from the target gear to that from the reference gear yields the size selectivity of the target gear for the target species *relative* to the reference gear. If the size selectivity of the reference gear is known (or assumed), then the *absolute* size selectivity of the target gear can subsequently be determined.
+
+#### Haul-level equations
+
+For each paired haul *h*, the number of crab caught within a size bin *z* using gear type *g*, $n^g_{h,z}$, is a random variable with some sampling distribution which we represent as $Pr({\bar{n}}^g_{h,z},\theta_{h,z})$, where ${\bar{n}}^g_{h,z}$ is the *expected* number and $\theta_{h,z}$ represents parameters that characterize other aspects of the distribution (e.g., the variance). Further, the expected number $\bar{n}^g_{h,z}$ is related to the gear-specific selectivity ${S^g}_{h,z}$ for crab in size bin *z* at the location of the paired haul *h*, the gear/haul-specific area swept ${A^g}_{h}$, and the local density of crab (e.g., abundance/km^2^) at the location of the paired haul location in the size bin, $D_{h,z}$, by
+
+$$ 
+{\bar{n}}^g_{h,z} = {S^g}_{h,z} \cdot {A^g}_{h} \cdot D_{h,z}
+$$ {#eq-exp_n_at_z}
+
+The gear-specific selectivity ${S^g}_{h,z}$ is characterized by haul to reflect potential environmental factors such as depth or temperature that may influence selectivity and vary among paired hauls. The nature of the sampling distribution $Pr(\dots)$ will be determined by the spatial process determining how crab are distributed across the local benthic seascape. 
+
+In the case that individuals are distributed completely randomly across the seascape, the spatial process is a homogeneous spatial Poisson process with intensity $D_{h,z}$ and the sampling distributions are Poisson distributions with intensities ${S^g}_{h,z} \cdot {A^g}_{h} \cdot D_{h,z}$. Furthermore, in this (special) case, it can be shown that the target gear catch, conditional on the total catch (target + reference) $n_{h,z}$, follows a binomial distribution $B(N,p)$ with $N = n_{h,z}$ and 
+
+$$p = p_{h,z} = \frac{\bar{n}^T_{h,z}}{\bar{n}^T_{h,z}+\bar{n}^R_{h,z}} $$ {#eq-p1}
+
+where the superscripts *T* and *R* indicate the target and reference gears, respectively. Substituting @eq-exp_n_at_z for the target and reference gears into @eq-p1 yields
+
+$$
+\begin{split} 
+  p_{h,z} &= \frac{{S^T}_{h,z} \cdot {A^T}_{h,z} \cdot D_{h,z}}{{S^R}_{h,z} \cdot {A^R}_{h,z} \cdot D_{h,z}+{S^T}_{h,z} \cdot {A^T}_{h,z} \cdot D_{h,z}} \\
+          &= \frac{{S^T}_{h,z} \cdot {A^T}_{h,z}}{{S^R}_{h,z} \cdot {A^R}_{h,z}+{S^T}_{h,z} \cdot {A^T}_{h,z}} \\
+         &= \frac{r_{h,z} \cdot q_h}{1+r_{h,z} \cdot q_h} 
+\end{split}
+$$ {#eq-p2}
+
+where $r_{h,z}$ represents the ratio of the gear-specific selectivities $\frac{{S^T}_{h,z}}{{S^R}_{h,z}}$ and $q_h$
+is the ratio of areas swept by the two gear types (i.e., $\frac{{A^T}_{h}}{{A^R}_{h}}$). @eq-p2 can be recast slightly to yield
+
+$$ logit(p_{h,z}) = ln(\frac{p_{h,z}}{1-p_{h,z}}) = ln(\frac{\frac{r_{h,z} \cdot q_h}{1+r_{h,z} \cdot q_h}}{1-\frac{r_{h,z} \cdot q_h}{1+r_{h,z} \cdot q_h}}) = ln(r_{h,z} \cdot q_h) = ln(r_{h,z}) + ln(q_h)$$ {#eq-logit_p}
+
+This allows one to fit statistical models of the form
+
+$$ logit(\hat{p}_{h,z}) = lnR(z,e_{1_h},e_{2_h},...) + ln(q_h) + \epsilon_{h,z} $$ {#eq-lnR}
+
+where $\hat{p}_{h,z}$ is the observed proportion, $q_h$ is a known constant, $e_{1_h}$, $e_{2_h}$, ... represent environmental variables associated with the paired haul, and $\epsilon_{h,z}$ represents sampling variability. Under the assumption that the reference gear captures all crab in its swept area (i.e., the reference gear is not size-selective and has catchability equal to 1),
+
+$$ {\tilde{S}^T}_{h,z} = exp(lnR(z,e_1(h),e_2(h),...)) $$ {#eq-HaulLevelSel}
+
+is the estimated haul-level selectivity of the target gear.
+
+### Survey-level equations
+
+An alternative to the above haul-level analysis is based on aggregating the haul-level area-swept abundance-at-size to the entire SBS study area ($A^{SBS}$) such that
+
+$${N^g}_{z} = A^{SBS} \cdot \sum_h{\frac{{n^g}_{h,z}}{{A^g}_{h}}}$$ 
+{#eq-asNatZ}
+
+is a gear-specific estimate of area-swept abundance-at-size in the SBS study area. ${N^g}_{z}$ is related to total abundance-at-size in the SBS study area, $N_z$ by
+
+$${N^g}_{z} = {S^g}_{z} \cdot N_z$$ 
+{#eq-sbsNatZ}
+
+Taking the ratio of ${N^g}_{z}$ from the target gear ($g=T$) to that for the reference gear ($g=R$) yields
+
+$$\frac{{N^T}_{z}}{{N^R}_{z}}=\frac{{S^T}_{z}}{{S^R}_{z}}$$
+
+which, under the assumption that the reference gear is non-size selective and has catchability equal to 1, yields
+
+$${\tilde{S}^T}_{z} = \frac{{N^T}_{z}}{{N^R}_{z}}$$
+{#eq-AreaLevelSel}
+
+If haul-level selectivity is independent of local environmental factors, then $\tilde{S}^T_{z}$ is also an estimate of haul-level selectivity and characterizes "survey selectivity" across the entire area covered by the survey using the target gear. However, if haul-level selectivity depends strongly on local environmental factors, then $\tilde{S}^T_{z}$ represents a weighted average of individual haul-level values appropriate for the SBS study area. If the SBS study area does not coincide with the area covered by the survey that uses the target gear, $\tilde{S}^T_{z}$ is not necessarily applicable to the entire survey area (and thus may not not represent "survey selectivity").
+
+### Application {#sec-application}
+
+SBS studies were conducted jointly by the National Marine Fisheries' Alaska Science Center (NMFS AFSC) and the Bering Sea Fisheries Research Foundation (BSFRF) in 2013, 2014, 2015, and 2016 at standard NMFS Eastern Bering Sea (EBS) Shelf Survey stations in Bristol Bay, Alaska to characterize the selectivity of the NMFS bottom trawl survey gear for red king crab (*Paralithodes camtschaticus*) and Tanner crab (*Chionoecetes bairdi*). Similar studies were also conducted in 2017 and 2018 further west on the EBS shelf focused more specifically on Tanner crab. While the NMFS bottom trawl gear (an 83-112 otter trawl) is considered size-selective for Tanner crab because escapement under the trawl footrope is size-dependent, the BSFRF nephrops trawl (the reference gear in these studies) has better bottom-tending abilities than the NMFS gear such that the BSFRF gear is considered to be non-size selective for Tanner crab across the range of sizes of interest to the stock assessment (25-200 mm carapace width [CW]; @TannerCrab2023).
+
+# Methods {#sec-Methods}
+
+
+<!-- ### Data collection {#sec-DataCollection} -->
+<!--```{r TM_SBSData, child=file.path(child_path$peek(),"q01_Chap1.qmd"),eval=TRUE}-->
+<!--````-->
+
+<!-- # Chapter 2 {#sec-Chap2} -->
+<!--```{r main_Chap2, child=file.path(child_path$peek(),"q02_Chap2.qmd"),eval=TRUE}-->
+<!--````-->
+
+<!-- references -->
+```{r,eval=!knitr::opts_knit$get("child"),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_MAIN
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_MAIN
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

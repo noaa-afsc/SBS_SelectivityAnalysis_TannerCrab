@@ -1,0 +1,204 @@
+---
+title: "SBS Studies: Data Methods"
+author: "William T. Stockhausen"
+institute: "AFSC/NMFS/NOAA"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+# bibliography: ../Bibliography/bib_SBS-TannerCrab-doc.bib 
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 8
+    fig-asp: 1.4
+    fig-dpi: 100
+    embed-resources: true
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+echo: false
+warning: false
+results: 'hide'
+keep-md: false
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: DataMethods_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_DataMethods
+#| results: 'asis'
+  require(ggplot2);
+  require(kableExtra);
+  require(tables);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) warning("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/01_SBS_Data");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+```
+
+## SBS Data collection
+
+SBS studies were conducted jointly by the National Marine Fisheries' Alaska Science Center (NMFS AFSC) and the Bering Sea Fisheries Research Foundation (BSFRF) in 2013, 2014, 2015, and 2016 at standard NMFS Eastern Bering Sea (EBS) Shelf Survey stations in Bristol Bay, Alaska to characterize the selectivity of the NMFS bottom trawl survey gear for red king crab (*Paralithodes camtschaticus*) and Tanner crab (*Chionoecetes bairdi*). Similar studies were also conducted in 2017 and 2018 further west on the EBS shelf focused more specifically on Tanner crab (@fig-sbs_stations). The NMFS survey uses a 83-112 otter trawl towed for \~30 minutes on-bottom at stations located on a standardized 20 *x* 20 nmi^2^ grid across the EBS shelf, with additional stations located at grid corners near the Pribilof Islands and St. Matthew Island to provide higher sampling densities in those areas for blue king crab (e.g., @LauthAndNichol2013). For the Tanner crab side-by-side (SBS) studies, a BSFRF-chartered vessel towed a nephrops bottom trawl starting at the same time, and at the same speed and direction, as the associated NMFS tow, but offset by \~0.5 nmi to create a "paired haul" (@REF). Because of the better bottom-tending performance of the BSFRF gear, tow durations were limited to \~5 minutes on bottom.
+
+```{r create_sbs_station_maps}
+#| cache: true
+#| cache-vars: p1
+#| echo: false
+  lst = wtsUtilities::getObj(file.path(s$dirs$SBS_Data,"rda_Step1_SBS_RawData.RData"));
+  dfr_stns  = lst$dfrSD_SBS |> dplyr::select(YEAR,GIS_STATION);
+  dfr_hauls = dplyr::bind_rows(lst$dfrHD_BSFRF_SBS |> 
+                                 dplyr::select(YEAR,MID_LATITUDE,MID_LONGITUDE) |> 
+                                 dplyr::mutate(type="BSFRF"),
+                               lst$dfrHD_NMFS_SBS |> 
+                                 dplyr::select(YEAR,MID_LATITUDE,MID_LONGITUDE) |> 
+                                 dplyr::mutate(type="NMFS"));
+  sf_hauls = wtsGIS::createSF_points(dfr_hauls,
+                                     xCol="MID_LONGITUDE",
+                                     yCol="MID_LATITUDE");
+
+  grid = tcsamSurveyData::gisGetSurveyGridLayers()$grid;
+  crs  = sf::st_crs(grid);
+  bbox = wtsGIS::getStandardBBox("EBS");
+  bbox["xmin"] = -173;
+  bbox["ymax"] =   60;
+  land = wtsGIS::getPackagedLayer("Alaska");
+  bthm = wtsGIS::getPackagedLayer("ShelfBathymetry") |> 
+           wtsGIS::transformCRS(crs) |> 
+           sf::st_crop(bbox);
+          
+  bmls = tcsamSurveyData::gg_GetBasemapLayers(sf_land=land,
+                                              sf_bathym=bthm,
+                                              final_crs=crs,
+                                              bbox=bbox);
+  sf_stns = dfr_stns |> 
+               dplyr::inner_join(grid,by=c("GIS_STATION"="STATION_ID")) |> 
+               sf::st_set_geometry("geometry");
+  p1 = ggplot(sf_stns) + 
+        bmls$land + 
+        geom_sf(fill="grey") + 
+        bmls$bathym + 
+        geom_sf(data=grid,colour="grey",fill=NA) + 
+        geom_sf(data=sf_hauls,mapping=aes(colour=type),shape=22,size=1,fill=NA) + 
+        facet_wrap(~YEAR,nrow=2) + 
+        bmls$map_scale + 
+        wtsPlots::getStdTheme() + bmls$theme;
+```
+
+```{r plot_sbs_station_maps}
+#| label: fig-sbs_stations
+#| fig-cap: "Side-by-side haul (SBS) study stations for Tanner crab selectivity in the NMFS Eastern Bering Sea Shelf Survey. Grey lines: NMFS survey grid stations, filled squares: SBS stations with paired hauls; blue lines: 50 m, 100 m, 200 m and deeper bathymetric contours."
+#| fig-alt: Maps showing the side-by-side haul (SBS) study stations for Tanner crab selectivity in 2013-2018.
+#| dependson: create_sbs_station_maps
+#| warning: false
+#| echo: false
+##| fig-width: 8.0in
+##| out-width: 100%
+print(p1);
+```
+
+<!-- references -->
+```{r,eval=!knitr::opts_knit$get("child"),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_MAIN
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_MAIN
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

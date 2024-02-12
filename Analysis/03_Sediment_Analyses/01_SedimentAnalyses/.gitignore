@@ -1,0 +1,15 @@
+
+.DS_Store
+*.RData
+*.html
+*.pdf
+/AlaskaShapefile/
+/BS_2019_0508.gdb/
+BS_2019_0508.gdb.zip
+/EBS_CrabSurveys.gdb/
+/EBS_Sed.gdb/
+EBS_Sed.gdb.zip
+/Rasters/
+/SedimentsAnalysis.gdb/
+/Shapefile_AvgMeanPhiBySurveyGridCell/
+

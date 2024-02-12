@@ -1,0 +1,11 @@
+
+.DS_Store
+*.RData
+*.html
+*.pdf
+/q01_EmpiricalSelectivityResults_cache/
+/q01_EmpiricalSelectivityResults_files/
+/figures/
+/tables/
+
+

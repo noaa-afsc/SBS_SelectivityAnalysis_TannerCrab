@@ -1,0 +1,12 @@
+
+.DS_Store
+*.RData
+*.html
+*.pdf
+/q02_SedimentAnalyses_cache/
+/q02_SedimentAnalyses_files/
+/SedimentsAnalysis.gdb/
+/figures/
+/tables/
+
+
