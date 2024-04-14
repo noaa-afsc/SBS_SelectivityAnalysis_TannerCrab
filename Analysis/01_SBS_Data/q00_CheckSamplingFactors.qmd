@@ -1,0 +1,383 @@
+---
+title: "NMFS Survey Samplng Factors"
+author: "William T. Stockhausen"
+institute: "AFSC/NMFS/NOAA"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+# bibliography: ../Bibliography/bib_SBS-TannerCrab-doc.bib 
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 8
+    fig-asp: 0.8
+    fig-dpi: 100
+    embed-resources: true
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+echo: false
+warning: false
+results: 'hide'
+keep-md: false
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  doBootstrapping: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: CheckSamplingFactors_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  doBootstrapping = params$doBootstrapping;
+  reorderTables   = params$reorderTables;
+  reorderFigures  = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_CheckSamplingFactors
+#| results: 'asis'
+  require(ggplot2);
+  require(kableExtra);
+  require(tables);
+  require(tcsamSurveyData)
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) cat("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/01_SBS_Data");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+  ##--
+```
+
+## Introduction 
+
+NMFS currently conducts an annual bottom trawl survey to collect data on the distribution and abundance of crab and groundfish resources in the eastern Bering Sea (EBS) to provide fishery-independent population estimates and biological data critical to the management of commercially important species in the EBS [@ZacherEtAl2019]. For each tow, all crab were removed from the catch, sorted by species and sex, and a total catch weight was obtained for each species. Biological sampling for various crab species during survey generally consists of whole haul sampling, in which all crab are enumerated and various biological data such as sex, maturity state, shell condition, and carapace width (or length, depending on species) are recorded for each individual (e.g., [@ZacherEtAl2019]). However, when the total catch is exceptionally large (approximately > 300), a random subsample of the catch may be taken for enumeration and biological data collection. This subsample may be taken at the level of the total catch, or at the level of a particular size and sex category. When such a subsample is taken, the weights of the sampled and non-sampled crab are recorded and a factor can be calculated from the size composition of the measured crab to "expand" the sampled (measured) crab to the level at which the subsampling occurred. This factor (the "sampling factor"), $\theta$, can be applied to "scale up" the information from the sampled crab to that of the total catch:
+
+ $$ 
+ \theta = \frac {W_T} {\sum_i{w_i}} 
+ $$ {#eq-SF}
+
+where $W_T$ is the total weight of crab in the sample and $w_i$ is the weight of the $i$th measured crab in the subsample. In practice, the weight of a measured crab is determined using a regression for weight as a function of crab size.
+
+```{r getData}
+  #--processing parameters
+  minYr = 2013;
+  maxYr = 2018;
+  sex   = "ALL";
+  mat   =  "ALL";
+  s_c   =  "ALL";
+  minZ  =  0;
+  maxZ  =  Inf;
+  calcMaleMat = FALSE;
+  verbosity   = 0;
+  
+  #--NMFS data
+  dirData_NMFS   <-"~/Work/StockAssessments-Crab/Data/Survey.NMFS.EBS/Current";
+  fnStrata       <-file.path(dirData_NMFS,"TannerCrab_SurveyStrata.csv");
+  fnHaulData_NMFS<-file.path(dirData_NMFS,"TannerCrab_HaulData.csv");
+  
+  #--read NMFS strata definitions
+  dfrStrata<-readr::read_csv(fnStrata) |>
+               dplyr::select(STATION_ID,DISTRICT,TOWS,SURVEY_YEAR,
+                             LATITUDE,LONGITUDE,STRATUM,TOTAL_AREA_SQ_NM) |> 
+               dplyr::filter(dplyr::between(SURVEY_YEAR,minYr,maxYr));
+  dfrSD<-selectStrata.TrawlSurvey(dfrStrata,
+                                  species="BTC",
+                                  strataType="2015",
+                                  export=FALSE,
+                                  verbosity=verbosity) |> 
+           dplyr::filter(dplyr::between(YEAR,minYr,maxYr));
+  rm(dfrStrata);
+  
+  #--read in NMFS haul data corresponding to stations at which BSFRF SBS hauls were conducted
+  #----read in haul data file
+  dfrHaulData_NMFS<-readr::read_csv(file=fnHaulData_NMFS,
+                                    guess_max=Inf,
+                                    skip=5) |> 
+                      dplyr::filter(dplyr::between(AKFIN_SURVEY_YEAR,minYr,maxYr));
+  #----Select NMFS haul data for SBS survey years
+  dfrHD_NMFS<-selectHauls.TrawlSurvey(dfrSD,
+                                      tbl=dfrHaulData_NMFS,
+                                      YearRange=c(minYr,maxYr),
+                                      export=FALSE,
+                                      verbosity=verbosity);
+  #--NMFS: check sampling factors for uniqueness with hauls
+  dfr = dfrHaulData_NMFS |> dplyr::select(year=AKFIN_SURVEY_YEAR,hj=HAULJOIN,
+                                          stn=GIS_STATION,asw=AREA_SWEPT,sub=SUBSAMPLE,
+                                          x=SEX,z=WIDTH,sf=SAMPLING_FACTOR);
+```
+```{r}
+#| label: fig-HistSFs
+#| fig-cap: Histogram of distinct sampling factors for hauls with subsampling.
+  #----extract distinct sampling factors by haul
+  dfr1 = dfr |> dplyr::distinct(sf)
+  ggplot(dfr1,aes(x=sf)) + geom_histogram(binwidth=1) + 
+     labs(x="sampling factor",y="count") +
+     wtsPlots::getStdTheme();
+```
+
+```{r extractHauls,eval=doBootstrapping}
+  #----extract hauls with sampling factors > 1
+  dfr1 = dfr |> dplyr::distinct(year,hj,x,sf) |> 
+                dplyr::count(year,hj,x,name="n") |> 
+                dplyr::filter(n>1);
+  dfr2 = dfr |> dplyr::inner_join(dfr1,by=c("year","hj","x")) |>
+                dplyr::mutate(sfr=1/sf,
+                              cnt=1) |> 
+                dplyr::group_by(year,hj,x,sf) |> 
+                dplyr::summarize(tsf=sum(sf,na.rm=TRUE),
+                                 tct=sum(cnt,na.rm=TRUE));
+  
+  #----NMFS
+  dfrID_NMFS<-selectIndivs.TrawlSurvey(dfrHD_NMFS,
+                                       tbl=dfrHaulData_NMFS,
+                                       sex=sex,
+                                       maturity=mat,
+                                       shell_condition=s_c,
+                                       calcMaleMaturity=calcMaleMat,
+                                       minSize=minZ,
+                                       maxSize=maxZ,
+                                       export=FALSE,
+                                       verbosity=verbosity);
+```
+
+```{r doBootstrap,eval=doBootstrapping}
+  #--estimate observation variance for sampling factors > 1
+  dfrHDp_NMFS = dfrHD_NMFS |> dplyr::filter(HAULJOIN %in% dfr1$hj);
+  nHs = nrow(dfrHDp_NMFS);
+  nBHs=5000;#--number of bootstrapped hauls
+  nBZs=1;   #--number of bootstrapped size comps for each bootstrapped haul
+  b = 1;
+  lstBHs = list();
+  while (b <= nBHs){
+    #--testing b = 1;
+    irw  = ceiling(runif(1,0,nHs));    #--index of selected haul
+    dfrH = dfrHDp_NMFS[irw,];          #--selected haul
+    hj_  = dfrH$HAULJOIN;
+    dfrUXSs = dfrID_NMFS |> 
+               dplyr::filter(HAULJOIN==hj_) |> 
+               dplyr::distinct(SEX,SAMPLING_FACTOR) |> 
+               dplyr::filter(SAMPLING_FACTOR>1);
+    lstXS = list();
+    for (irwXS in 1:nrow(dfrUXSs)){
+    #--testing: irwXS=1;
+      dfrUXS = dfrUXSs[irwXS,];
+      ux  = dfrUXS$SEX;
+      usf = dfrUXS$SAMPLING_FACTOR;
+    #--calculate total sex-specific weight and abundance for haul
+      totWA = dfrID_NMFS |> 
+                 dplyr::filter(HAULJOIN==hj_,SEX==ux) |> 
+                 dplyr::summarize(wgt=sum(SAMPLING_FACTOR*CALCULATED_WEIGHT,na.rm=TRUE),
+                                  abd=sum(SAMPLING_FACTOR,na.rm=TRUE)); 
+      #--select only sub-sampled crab of sex ux, sampling factor usf
+      dfrI = dfrID_NMFS |> dplyr::filter(HAULJOIN==hj_,SEX==ux,SAMPLING_FACTOR==usf);
+      nIs = nrow(dfrI);
+      if (nIs>0){
+        #--calculate "true" sex-specific basket weight for portion of haul to be subsampled
+        wgtTrSSBW_ = (dfrI |> 
+                        dplyr::summarize(wgt=sum(SAMPLING_FACTOR*CALCULATED_WEIGHT,na.rm=TRUE)))$wgt;
+  
+        #--start bootstrap results with "true" case
+        lstBZs = list();
+        #--check actual sampling factor calculation
+        dfrRS = dfrI;#--original measured individuals
+        #--calculated weight of (bootstrapped) measured individuals in haul
+        wgtBSS_  = (dfrRS |> 
+                      dplyr::summarize(wgt=sum(CALCULATED_WEIGHT,na.rm=TRUE)))$wgt;
+        lstBZs[[1]] = tibble::tibble(bh=b,                      #--haul sampling bootstrap counter
+                                     bhxi=0,                    #--individual (within sex) sampling bootstrap counter
+                                     hj=hj_,                    #--haul join
+                                     x=ux,                      #--sex
+                                     wgtT=totWA$wgt,            #--reported total sex-specific weight for haul
+                                     abdT=totWA$abd,            #--reported total abundance
+                                     n=nIs,                     #--number of  individuals actually measured in subsample
+                                     wgtTrSSBW=wgtTrSSBW_,      #--"true" sex-specific basket weight for individuals to be subsampled
+                                     sfTr=usf,                  #--"true" sampling factor
+                                     wgtBSS=wgtBSS_,            #--weight for bootstrapped subsampled individuals
+                                     sfB=wgtTrSSBW_/wgtBSS_,    #--sampling factor from (non) bootstrapped individuals (should match "true" sampling factor)
+                                     abdTB=abdT-nIs*(sfTr-sfB));#--"new" estimate of total abundance (matches reported since no resampling)
+        #--bootstrap by resampling measured individuals to get bootstrapped sampling factors
+        for (iBZ in 1:nBZs){
+          idx_rs = floor(runif(nIs,0,nIs))+1;  #--indices to resample individuals
+          dfrRS  = dfrI[idx_rs,];              #--"new" observation of size composition
+          #--calculate weight of measured individuals
+          wgtBSS_  = (dfrRS |> 
+                        dplyr::summarize(wgt=sum(CALCULATED_WEIGHT,na.rm=TRUE)))$wgt;
+          lstBZs[[1+iBZ]] = tibble::tibble(bh=b,                      #--haul sampling bootstrap counter
+                                           bhxi=iBZ,                  #--individual (within sex) sampling bootstrap counter
+                                           hj=hj_,                    #--hauljoin
+                                           x=ux,                      #--sex
+                                           wgtT=totWA$wgt,             #--reported total sex-specific weight for haul
+                                           abdT=totWA$abd,            #--reported total abundance
+                                           n=nIs,                     #--number of  individuals actually measured in subsample
+                                           wgtTrSSBW=wgtTrSSBW_,      #--"true" sex-specific basket weight for individuals to be subsampled
+                                           sfTr=usf,                  #--"true" sampling factor
+                                           wgtBSS=wgtBSS_,            #--weight for bootstrapped subsampled individuals
+                                           sfB=wgtTrSSBW_/wgtBSS_,    #--sampling factor from bootstrapped individuals
+                                           abdTB=abdT-nIs*(sfTr-sfB));#--estimated total abundance for bootstrap realization
+        }#--iBZ
+        lstXS[[paste(ux,usf)]] = dplyr::bind_rows(lstBZs); rm(lstBZs);
+      }#--nIs>0
+    }#--irwXS
+    lstBHs[[b]] = dplyr::bind_rows(lstXS);  rm(lstXS);
+    b = b+1;
+  }#--b
+  dfrBHs = dplyr::bind_rows(lstBHs);
+  wtsUtilities::saveObj(dfrBHs,file.path(dirThs,"rda_BootstrappedSFs.RData"));
+```
+
+```{r doStats}
+  #--read in bootstrapping results
+  dfrBHs = wtsUtilities::getObj(file.path(dirThs,"rda_BootstrappedSFs.RData"));
+  #--analyze & plot results
+  dfrStats = dfrBHs |> dplyr::filter(bhxi>0,n>5) |> 
+                       dplyr::group_by(x) |> 
+                       dplyr::summarize(relErrMnSF=mean((sfTr-sfB)/sfTr,na.rm=TRUE),
+                                        relErrSdSF=  sd((sfTr-sfB)/sfTr,na.rm=TRUE),
+                                        relErrMnTA=mean((abdT-abdTB)/abdT,na.rm=TRUE),
+                                        relErrSdTA=  sd((abdT-abdTB)/abdT,na.rm=TRUE));
+  
+  dfr = dfrBHs |> 
+          dplyr::filter(bhxi>0,n>5) |> 
+          dplyr::mutate(x=factor(x,levels=c("MALE","FEMALE")),
+                        relErrSF=(sfTr-sfB)/sfTr,
+                        relErrTA=(abdT-abdTB)/abdT);
+```
+
+```{r}
+#| label: tbl-Stats 
+#| tbl-cap: Relative variation in sampling factor and total abundnce. 
+  kblr = kableExtra::kbl(dfrStats,col.names=c("sex","mean","std. dev.","mean","std. dev."),
+                         booktabs=TRUE) |> 
+           kableExtra::add_header_above(c(" ","sampling factor"=2,"total abundnace"=2))
+if (!isPDF) kblr;
+```
+
+```{r}
+#| label: fig-RelVarSF
+#| fig-cap: "Relative variation in the sampling factor, based on bootstrapping. Inset shows full extent."
+  p1 = ggplot(dfr,aes(x=relErrSF,y=after_stat(ndensity),colour=x,fill=x)) + 
+          geom_histogram(binwidth=0.05,position="identity",alpha=0.5) + 
+          labs(x="relative variation in sampling factor",
+               y="normalized density",
+               colour="sex",fill="sex") + 
+          wtsPlots::getStdTheme();
+  p2 = p1 + theme(axis.title=element_blank(),legend.position="none")
+  p3 = p1 + coord_cartesian(xlim=c(-1,NA)) + 
+         annotation_custom(ggplotGrob(p2),xmin=-1,xmax=-0.5,ymin=0.75,ymax=1);
+  if (!isPDF) print(p3)
+```
+
+```{r}
+#| label: fig-RelVarTA
+#| fig-cap: "Relative variation in total abundance, based on bootstrapping. Inset shows full extent."
+  p1 = ggplot(dfr,aes(x=relErrTA,y=after_stat(ndensity),colour=x,fill=x)) + 
+        geom_histogram(binwidth=0.05,position="identity",alpha=0.5) + 
+        labs(x="relative variation in total abundance",
+             y="normalized density",
+             colour="sex",fill="sex") + 
+        wtsPlots::getStdTheme();
+  p2 = p1 + theme(axis.title=element_blank(),legend.position="none")
+  p3 = p1 + coord_cartesian(xlim=c(-1,NA)) + 
+         annotation_custom(ggplotGrob(p2),xmin=-1,xmax=-0.5,ymin=0.75,ymax=1);
+  if (!isPDF) print(p3)
+```
+```
+
+<!-- references -->
+```{r refs_CheckSamplingFactors,eval=!knitr::opts_knit$get("child"),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_CheckSamplingFactors
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_CheckSamplingFactors
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

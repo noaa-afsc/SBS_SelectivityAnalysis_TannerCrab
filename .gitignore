@@ -1,4 +1,3 @@
-
 .DS_Store
 *.html
 *.pdf
@@ -6,3 +5,4 @@
 /.Rproj.user/
 Analysis/03_Sediment_Analyses/01_SedimentAnalyses/ArcGISDesktopAdvanced_SingleUse_909827.prvc
 Analysis/04_MGCV_Analysis/r_ListForFiguresInfo.csv
+log.txt

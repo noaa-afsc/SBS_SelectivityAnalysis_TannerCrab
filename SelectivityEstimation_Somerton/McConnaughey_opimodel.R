@@ -1,10 +1,12 @@
 Binomial.gam.model4.new<-function (){
-    dat <- pcapture.data.selectmodel.males
-    width <- dat$width;    #--carapace widths
-    meas.b <- dat$meas.b   #--number of measaured crab, BSFRF
-    meas.n <- dat$meas.n   #--number of measured crab, NMFS
-    sed <- dat$phi         #--sediment size, expressed in units of phi = -ln(grain size in mm)
-    dep <- dat$depth       #--trawl depth
+    dat    <- pcapture.data.selectmodel.males
+    width  <- dat$width;    #--carapace widths
+    meas.b <- dat$meas.b    #--number of measured crab, BSFRF
+    meas.n <- dat$meas.n    #--number of measured crab, NMFS
+    sed    <- dat$phi       #--sediment size, expressed in units of phi = -ln(grain size in mm)
+    dep    <- dat$depth     #--trawl depth
+    dat$prop = dat$meas.n/(dat$meas.n+dat$meas.b);
+    ggplot(dat,aes(x=width,y=prop)) + geom_point() + geom_smooth()
     #--fit to binomial model (successes, failures) with mean response s(Z) + s(phi, D))
     #----note: model includes an intercept term
     fit1 <- gam(cbind(meas.n, meas.b) ~ s(width) + s(sed, dep), family = binomial)
@@ -24,13 +26,42 @@ Binomial.gam.model4.new<-function (){
     a.rat <- area.b/area.n;  #--relative area swept, BSFRF:NMFS
     #--predict response
     ypred <- predict(fit1, type = "response")
-    ypredx <- tapply(ypred, width, mean)
+    ypredx <- tapply(ypred, width, mean);     #--wts: taking mean of ypred by width
     y <- ypredx
     widths <- as.numeric(names(ypredx))
     plot(widths, ypredx, ylim = c(0, 1), las = 1, type="l", lty=1, lwd=2);
     points(width,meas.n/(meas.n+meas.b));
     title("predicted response");
+    #--wts: plot
+    dfrPrd = tibble::tibble(width=width,ypred=ypred);#--wts
+    ggplot(dfrPrd,aes(x=width,y=ypred)) + geom_point() + geom_smooth() + 
+      geom_line(data=dfrPrd |> dplyr::group_by(width) |> dplyr::summarize(ypred=mean(ypred,na.rm=TRUE))) + 
+      scale_y_continuous(limits=c(0,1));#--wts
+    gam.check(fit1)
+    plot(fit1)
+    gratia::draw(fit1)
+    simdRes = simulateResiduals(fit1,n=1000,refit=TRUE);
+    DHARMa::plotQQunif(simdRes);
+    DHARMa::plotResiduals(simdRes);
+    DHARMa::plotResiduals(simdRes,form=width)
+    DHARMa::plotResiduals(simdRes,form=sed)
+    DHARMa::plotResiduals(simdRes,form=dep)
+    
+    #-wts: rerun with alternative formulations
+    lnq = log((1/(area.b*sp.b))/(1/(area.n*sp.n)));#-- q = expF_b/expF_n
+    fit2 <- gam(cbind(meas.n, meas.b) ~ s(width) + s(sed, dep), family = binomial, offset=lnq)
+    ypred2 <- predict(fit2, type = "response")
+    dfrPrd2 = tibble::tibble(width=width,ypred=ypred2);#--wts
+    ggplot(dfrPrd,aes(x=width,y=ypred)) + geom_point() + geom_smooth() + 
+      geom_line(data=dfrPrd |> dplyr::group_by(width) |> dplyr::summarize(ypred=mean(ypred,na.rm=TRUE))) + 
+      scale_y_continuous(limits=c(0,1));#--wts
+    
+    tot.n = meas.n + meas.b;
+    prop = meas.n/(tot.n);
+    fit3 <- gam(prop ~ s(width) + s(sed, dep), family = binomial, offset=lnq,weights=tot.n);
     cat(widths, "\n")
+    
+    
     #--what's this section doing?
     a.rat.mean <- mean(a.rat); #--was 0.144
     sam.rat <- (sam.rat)^0.25; #--variance stabilization?
