@@ -8,7 +8,7 @@ number-sections: true
 number-depth: 3
 reference-location: document
 reference-section-title: References
-bibliography: ../../Bibliography/bib_SBS-TannerCrab-doc.bib 
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
 csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
 link-citations: true
 crossref:
@@ -28,7 +28,7 @@ format:
     toc: true
     toc-location: right
     fig-width: 8
-    fig-asp: 1.4
+    fig-asp: 0.4
     fig-dpi: 100
     embed-resources: true
   pdf:
@@ -36,6 +36,8 @@ format:
     toc: false
     fig_crop: false
     keep-tex: false
+    fig-width: 6.5
+    fig-asp: 0.4
     geometry:
       - left=1.0in
       - right=1.0in
@@ -52,7 +54,7 @@ format:
 echo: false
 warning: false
 results: 'hide'
-keep-md: false
+keep-md: true
 keep-yaml: false
 editor: source
 editor_options: 
@@ -143,48 +145,6 @@ params:
   bmls = wtsGIS::gg_CreateBasemapLayers();
 ```
 
-```{r}
-#| label: fig-SedAnal2-PhiMap
-#| fig-cap: "Distribution of mean grain size (phi units), based on interpolation by kriging from the EBSSED2 database."
-#| dependson: SedAnal2_GetBMLS
-#| cache: true
-  #--plot map of phi
-  prj  = stars::st_transform_proj(rasters[[1]],crs=bmls$map_scale$crs);
-  p = ggplot() + bmls$land + bmls$bathym + bmls$theme + 
-        stars::geom_stars(data=prj) + 
-        bmls$map_scale + 
-        scale_fill_viridis_c(name="mean\ngrain\nsize\n(phi units)",option="magma")
-  if (!isPDF) print(p) else {
-    lbl = getLabel();
-    cap = wtsQMD::getFigCaption();
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
-```
-
-```{r}
-#| label: fig-SedAnal2-SortingMap
-#| fig-cap: "Distribution of grain size sorting coefficient (phi units), based on interpolation by kriging from the EBSSED2 database."
-#| dependson: SedAnal2_GetBMLS
-#| cache: true
-  #--plot map of phi
-  prj  = stars::st_transform_proj(rasters[[2]],crs=bmls$map_scale$crs);
-  p = ggplot() + bmls$land + bmls$bathym + bmls$theme + 
-        stars::geom_stars(data=prj) + 
-        bmls$map_scale + 
-        scale_fill_viridis_c(name="sorting\ncoefficient\n(phi units)",option="magma")
-  if (!isPDF) print(p) else {
-    lbl = getLabel();
-    cap = wtsQMD::getFigCaption();
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
-```
-
 ```{r SedAnal2_DoInterpolation,cache=TRUE}
   if (params$doSedInterp){
     #--get **all NMFS haul** data
@@ -239,9 +199,57 @@ params:
   }
 ```
 
+## Sediment characteristics {#sec-sed-results}
+
+Mean grain size and sorting coefficient vary across the EBS (Figures [-@fig-SedAnal2-PhiMap] and [-@fig-SedAnal2-SortingMap]). At SBS haul locations, mean grain size and sorting coefficient were positively correlated with each other ($\rho=0.571$) and haul depth ($\rho=0.530$ and 0.433, respectively) but negatively correlated with bottom temperature ($\rho=0.-530$ and -0.482; [@fig-SedAnal2-PairsPlot]). 
+
 ```{r}
-#| label: fig-SedAnal2-TPSvD
-#| fig-cap: "Distributions of bottom temperature and interpolated mean grain size (phi units) and sorting with haul depth at NMFS SBS haul locations (2013-2018)."
+#| label: fig-SedAnal2-PhiMap
+#| fig-cap: "Distribution of mean grain size (phi units), based on interpolation by kriging from the EBSSED2 database."
+#| dependson: SedAnal2_GetBMLS
+#| cache: true
+  #--plot map of phi
+  prj  = stars:::st_transform_proj.stars(rasters[[1]],crs=bmls$map_scale$crs);
+  p = ggplot() + bmls$land + bmls$bathym + bmls$theme + 
+        stars::geom_stars(data=prj) + 
+        bmls$map_scale + 
+        scale_fill_viridis_c(name="mean\ngrain\nsize\n(phi units)",option="magma")
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p));
+  # if (!isPDF) print(p) else {
+  #   lbl = getLabel();
+  #   cap = wtsQMD::getFigCaption();
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
+```
+
+```{r}
+#| label: fig-SedAnal2-SortingMap
+#| fig-cap: "Distribution of grain size sorting coefficient (phi units), based on interpolation by kriging from the EBSSED2 database."
+#| dependson: SedAnal2_GetBMLS
+#| cache: true
+  #--plot map of phi
+  prj  = stars:::st_transform_proj.stars(rasters[[2]],crs=bmls$map_scale$crs);
+  p = ggplot() + bmls$land + bmls$bathym + bmls$theme + 
+        stars::geom_stars(data=prj) + 
+        bmls$map_scale + 
+        scale_fill_viridis_c(name="sorting\ncoefficient\n(phi units)",option="magma")
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p))
+  # if (!isPDF) print(p) else {
+  #   lbl = getLabel();
+  #   cap = wtsQMD::getFigCaption();
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
+  rm(prj);
+```
+
+```{r}
+#| label: getSedDataForSBShauls
 #| dependson: SedAnal2_DoInterpolation
   #--plot normalized temp, phi, and sorting as a function of depth
   dfrHDp = dfrHD |> sf::st_drop_geometry() |> 
@@ -251,53 +259,57 @@ params:
                      dplyr::mutate(dtmp=(tmp-min(tmp,na.rm=TRUE))/(max(tmp,na.rm=TRUE)-min(tmp,na.rm=TRUE)),
                                    dphi=(phi-min(phi,na.rm=TRUE))/(max(phi,na.rm=TRUE)-min(phi,na.rm=TRUE)),
                                    dsrt=(srt-min(srt,na.rm=TRUE))/(max(srt,na.rm=TRUE)-min(srt,na.rm=TRUE))) |>
-                     dplyr::select(depth,dtmp,dphi,dsrt) |>
-                     dplyr::rename(`bottom temperature`=dtmp,phi=dphi,sorting=dsrt);
+                     dplyr::select(depth,tmp,phi,srt,dtmp,dphi,dsrt);
   dfrHDpp = dfrHDp |>
+               dplyr::select(depth,dtmp,dphi,dsrt) |>
+               dplyr::rename(`bottom temperature`=dtmp,phi=dphi,sorting=dsrt) |>
                tidyr::pivot_longer(c(`bottom temperature`,phi,sorting),
                                    names_to="variable",
                                    values_to="values");
+  dfrHDp = dfrHDp |> dplyr::select(depth,tmp,phi,srt) |>
+                     dplyr::rename(`bottom temperature`=tmp,phi=phi,sorting=srt);
+```
+```{r}
+#| label: fig-SedAnal2-PairsPlot
+#| fig-cap: "Pairs plot showing correlations among depth, bottom temperature, and interpolated mean grain size ('phi') and sorting coefficient sediment characteristics at NMFS SBS haul locations (2013-2018)."
+#| dependson: SedAnal2_DoInterpolation
+  #--make pairs plots 
+  p_col = GGally::ggpairs(dfrHDp);
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p_col))
+  # if (!isPDF) print(p_col) else {
+  #   lbl = getLabel();
+  #   cap = wtsQMD::getFigCaption();
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p_col,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
+  rm(dfrHDp,p_col);
+```
+
+```{r}
+#| label: fig-SedAnal2-TPSvD
+#| fig-cap: "Relative distributions of bottom temperature and interpolated mean grain size (phi units) and sorting coefficient with haul depth at NMFS SBS haul locations (2013-2018)."
+#| dependson: SedAnal2_DoInterpolation
   p_vsd = ggplot2::ggplot(dfrHDpp,mapping=aes(x=depth,y=values,colour=variable,fill=variable)) +
             ggplot2::geom_point(alpha=0.2) +
             ggplot2::geom_smooth(alpha=0.4) + 
             ggplot2::labs(x="bottom depth (m)",y="normalized value",colour="quantity",fill="quantity") +
             ggplot2::theme(legend.position="bottom");
-  if (!isPDF) print(p_vsd) else {
-    lbl = getLabel();
-    cap = paste0("Distributions of bottom temperature and interpolated mean grain size (phi units) and sorting with NMFS haul depth.");
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p_vsd,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p_vsd));
+  # if (!isPDF) print(p_vsd) else {
+  #   lbl = wtsQMD::getLabel();
+  #   cap = wtsQMD::getFigCaption();
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p_vsd,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
   rm(dfrHDpp,p_vsd);
 ```
 
-```{r}
-#| label: fig-SedAnal2-PairsPlot
-#| fig-cap: "Pairs plot showing correlations among depth, bottom temperature, and interpolated mean grain size and sorting sediment characteristics at NMFS SBS haul locations (2013-2018)."
-#| dependson: SedAnal2_DoInterpolation
-  #--make pairs plots 
-  p_col = GGally::ggpairs(dfrHDp)
-  if (!isPDF) print(p_col) else {
-    lbl = getLabel();
-    cap = paste0("Pairs plot showing correlations among depth and bottom temperature at NMFS survey haul locations and interpolated mean grain size and sorting sediment characteristics.");
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p_col,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
-  rm(p_col);
-```
-
-### Sediment characteristics {#sec-sed-results}
-
-Sediment characteristics may influence the vulnerability of Tanner crab to capture in the NMFS survey gear by affecting a crab's ability to bury in the sediment or by affecting the bottom-tending dynamics of the survey gear [@WeinbergAndKotwicki2008; @SomertonAndOtto1999; @SomertonEtAl2013]. The EBS shelf is characterized by large areas with reasonably homogeneous sediments due to its relatively broad, shallow shelf and the unusually small slope of its bottom [@EBSSED2]. Various grades of sand predominate overall, although significant concentrations of mud occur at greater-than-average depths. Gravel is rare and generally confined to nearshore areas. Because sediment characteristics vary spatially across the EBS ([@EBSSED2]), we interpolated measurements reflecting mean grain size and sorting coefficient at locations across the EBS to NMFS survey haul locations to include as potential covariates in the SBS selectivity analysis for Tanner crab. 
-
-In order to do so, we first acquired point measurements of mean grain size and sorting coefficient (in $\varphi$ units, i.e., negative log_2 of the diameter in mm) from high resolution samples in the EBSSED-2 sediment database ([@EBSSED2]) for the eastern Bering Sea shelf. These were interpolated to a uniform grid using the co-kriging geostatistics function of ArcGIS (Figures [-@fig-SedAnal2-PhiMap] and [-@fig-SedAnal2-SortingMap]).
-
-<!-- references -->
-```{r refs_SedAnal2,eval=!knitr::opts_knit$get("child"),results='asis'}
+<!-- references (don't show in PDF--no refs defined)-->
+```{r refs_SedAnal2,eval=!knitr::opts_knit$get("child")&(!isPDF),results='asis'}
   cat("# References {-}\n");
   cat("::: {#refs}\n");
   cat(":::\n\n");

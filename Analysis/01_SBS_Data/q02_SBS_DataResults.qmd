@@ -1,14 +1,21 @@
 ---
 title: "SBS Studies: Data Results"
-author: "William T. Stockhausen"
-institute: "AFSC/NMFS/NOAA"
+author:
+- name: William T. Stockhausen
+  affiliations:
+    - id: afsc-refm
+      name: "Alaska Fisheries Science Center"
+      department: "Resource Ecology and Fisheries Management"
+      address: 
+        - "7600 Sand Point Way N.E."
+        - "Seattle, Washington 98115-6349"
 date: '`r format(Sys.time(), "%b %e, %Y")`'
 fontsize: 11pt 
 number-sections: true
 number-depth: 3
 reference-location: document
 reference-section-title: References
-# bibliography: ../Bibliography/bib_SBS-TannerCrab-doc.bib 
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
 csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
 link-citations: true
 crossref:
@@ -28,14 +35,18 @@ format:
     toc: true
     toc-location: right
     fig-width: 8
-    fig-asp: 1.4
+    fig-asp: 0.4
     fig-dpi: 100
     embed-resources: true
+    include-in-header: 
+      - '`r system.file("files/in-line_math_mode.html",package="wtsQMD")`'
   pdf:
     documentclass: scrartcl
     toc: false
     fig_crop: false
     keep-tex: false
+    fig-width: 6.5
+    fig-asp: 0.4
     geometry:
       - left=1.0in
       - right=1.0in
@@ -48,7 +59,7 @@ format:
           \usepackage{placeins}
           \extrafloats{500}
           \maxdeadcycles=10000
-      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
 echo: false
 warning: false
 results: 'hide'
@@ -110,275 +121,327 @@ params:
     dirThs = ".";
   }
   ##--NOTE: take out or modify the following as necessary
-  if (!exists("s")){
+  if (!exists("prj_setup")){
     if (rstudioapi::isAvailable())
       fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
     if (child_path$peek()!="")
       fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
     #--for debugging: ;
-    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+    if (file.exists(fn)) prj_setup = wtsUtilities::getObj(fn);
   }
   ##--
 ```
 
-### Survey catch data {#sec-SBSDataResults}
-
-On average, the NMFS gear tended to catch more crab per tow at all (except the smallest) sizes compared with the BSFRF gear, reflecting the larger area swept by the NMFS gear during a tow (Figures [-@fig-RawNumbersMales], [-@fig-RawNumbersFemales] and [-@fig-ProportionNMFS]). Conversely, estimates of crab abundance were generally higher, particularly for small crab, from the BSFRF gear after accounting for area swept in each haul (@fig-AreaSweptNumbers). The resulting values obtained for $ln(r_{h,z})$ (@fig-LnR) exhibit substantial variability across hauls at almost any given size, with ln-scale values ranging from less than -2 to greater than 1 (ignoring infinite values from paired hauls with no catch at a given size by one gear type), suggesting that haul-level selectivity at a given size could vary by as much as a factor of 20 across stations--although this also includes variability simply due to sampling "error". The mean values of $ln(r)$ over hauls follow similar trends with size in each study year, whether weighted or unweighted by numbers caught, as generally does the value calculated from the ratio of area-swept abundance for the two gear types. All three approaches suggest that selectivity increases with size up to a point (although this point varies by year). One marked difference exhibited by the area-swept estimates, however, is that it suggests NMFS selectivity is asymptotic, whereas the values based on the paired haul data suggest that NMFS selectivity is dome-shaped, with large animals less prone to capture than intermediate-sized ones (@fig-EmpSel).
-
-```{r SBSDataResults_calcRawZCsByStn}
-  #--calculate "raw" size comps for numbers caught by station and gear type
-  #----DON'T use tcsamSurveyData functions for this (they scale by area swept)
-  require(wtsSizeComps)
-  lst = wtsUtilities::getObj(file.path(s$dirs$SBS_Data,"rda_Step1_SBS_RawData.RData"));
-  cutpts = seq(-0.5,204.5,5);
-  zBs    = wtsUtilities::calcMidpoints(cutpts);
-  dfrID_SBS = dplyr::bind_rows(
-                lst$dfrID_BSFRF_SBS |> 
-                  dplyr::inner_join(lst$dfrHD_BSFRF_SBS,by="HAULJOIN") |> 
-                  dplyr::select(YEAR,station=GIS_STATION,SEX,MATURITY,SHELL_CONDITION,SIZE,
-                                numIndivs,SAMPLING_FACTOR) |> 
-                  dplyr::mutate(gear="BSFRF"),
-                lst$dfrID_NMFS_SBS |> 
-                  dplyr::inner_join(lst$dfrHD_NMFS_SBS,by="HAULJOIN") |> 
-                  dplyr::select(YEAR,station=GIS_STATION,SEX,MATURITY,SHELL_CONDITION,SIZE,
-                                numIndivs,SAMPLING_FACTOR) |> 
-                  dplyr::mutate(gear="NMFS")) |> 
-               dplyr::rename_with(tolower,.cols=!numIndivs) |> 
-               dplyr::filter(sex %in% c("MALE","FEMALE"));#--drop other categories
-  #--determine unique year/station combinations and all size bins
-  dfrYSZ = dfrID_SBS |> dplyr::distinct(year,station) |> 
-             dplyr::cross_join(tibble::tibble(size=zBs));
-  #--calc size comps based on numbers sampled
-  dfrZCs_Num = wtsSizeComps::calcSizeComps(dfrID_SBS,"size","numIndivs",
-                                           c("gear","year","station","sex"),
-                                           cutpts,expandToAllFactorCombos=FALSE) |> 
-                 dplyr::mutate(size=size+2.5); #--adjust to center of size bins
-  #----expand size comps to all year/station/size bin combinations
-  dfrZCs_Num = dfrYSZ |> dplyr::left_join(dfrZCs_Num,by=c("year","station","size")) |> 
-                 dplyr::mutate(sampled=ifelse(is.na(numIndivs),0,numIndivs)) |> 
-                 dplyr::arrange(year,station,sex,size,gear) |> 
-                 dplyr::select(!numIndivs);
-  #--calc size comps based on estimated numbers caught
-  dfrZCs_Cat = wtsSizeComps::calcSizeComps(dfrID_SBS,"size","sampling_factor",
-                                           c("gear","year","station","sex"),
-                                           cutpts,expandToAllFactorCombos=FALSE) |> 
-                 dplyr::mutate(size=size+2.5); #--adjust to center of size bins
-  #----expand size comps to all year/station/size bin combinations
-  dfrZCs_Cat = dfrYSZ |> dplyr::left_join(dfrZCs_Cat,by=c("year","station","size")) |> 
-                 dplyr::mutate(caught=ifelse(is.na(sampling_factor),0,sampling_factor)) |> 
-                 dplyr::arrange(year,station,sex,size,gear) |> 
-                 dplyr::select(!sampling_factor);
-  #--combine tables
-  dfrZCs_RawByStn = dplyr::bind_cols(dfrZCs_Num,caught=dfrZCs_Cat$caught);
-  rm(dfrZCs_Cat,dfrZCs_Num);
+```{r SBSDataResults_GetStep1}
+  lst1  = wtsUtilities::getObj(file.path(prj_setup$dirs$SBS_Data,"rda_Step1_SBS_RawData.RData"));
+```
+```{r SBSDataResults_GetStep2}
+  lst2 = wtsUtilities::getObj(file.path(prj_setup$dirs$SBS_Data,"rda_Step2_SBS_ADTs.RData"));
+  objs2 = names(lst2);
+  for (obj in objs2) assign(obj,lst2[[obj]]);
 ```
 
-```{r SBSDataResults_CalcTotRawZCs}
-  dfrZCs_RawTot = dfrZCs_RawByStn |> 
-                    dplyr::group_by(year,sex,size,gear) |> 
-                    dplyr::summarize(ss=Sum(ss),
-                                     sampled=Sum(sampled),
-                                     caught=Sum(caught)) |>
-                    dplyr::ungroup() |> 
-                  tidyr::pivot_longer(c(sampled,caught),names_to="type",values_to="total")
-```
+## SBS surveys results {#sec-Results-SBS-Surveys}
 
-```{r SBSDataResults_DefFcn-plotTotRawZCs}
-  require(ggplot2);
-  require(rlang);
-  plotTotRawZCs<-function(dfr_,sex_,col,label){
-    p = ggplot(dfr_ |> dplyr::filter(sex==sex_),
-               aes(x=size,y={{col}},colour=gear,linetype=type)) + 
-          geom_line() + 
-          geom_vline(xintercept=25,linetype=3) + 
-          facet_wrap(~year,nrow=2,scales="free_y") + 
-          labs(x="size (mm CW)",y=label) + 
-          theme(legend.position=c(0.99,0.48),
-                legend.justification=c(1,1)) +
-          wtsPlots::getStdTheme();
-    return(p);
-  }
+### Paired-haul characteristics
+
+In total, `r nrow(dfrAS)` SBS paired hauls were conducted during the 2013-2018 study period ([@tbl-PairedHauls]). For NMFS hauls, areas swept ranged from `r prettyNum(min(dfrAS$NMFS),digits=3)` to `r prettyNum(max(dfrAS$NMFS),digits=3)` sq. nmi. and from `r prettyNum(min(dfrAS$BSFRF),digits=3)` to `r prettyNum(max(dfrAS$BSFRF),digits=3)` sq. nmi. for BSFRF hauls ([@fig-AreasSwept]). Area swept ratios for individual paired hauls (NMFS/BSFRF) ranged from `r prettyNum(min(dfrAS$ratio),digits=3)` to `r prettyNum(max(dfrAS$ratio),digits=3)`, with a mean of `r prettyNum(mean(dfrAS$ratio),digits=3)` ([@fig-AreasSweptRatios]). NMFS haul depths ranged from `r prettyNum(min(dfrD$NMFS),digits=2)` to `r prettyNum(max(dfrD$NMFS),digits=2)` m while BSFRF haul depths ranged from `r prettyNum(min(dfrD$BSFRF),digits=2)` to `r prettyNum(max(dfrD$BSFRF),digits=2)` m. On average, NMFS tows tended to be `r prettyNum(mnDiffD,digits=2)` m deeper than the paired BSFRF haul, but depth differences (NMFS-BSFRF) ranged from `r prettyNum(minDiffD,digits=2)` to `r prettyNum(maxDiffD,digits=2)` m ([@fig-HaulDepths]). NMFS haul bottom temperatures ranged from `r prettyNum(min(dfrT$NMFS),digits=2)` to `r prettyNum(max(dfrT$NMFS),digits=2)` ^o^C while BSFRF haul bottom temperatures ranged from `r prettyNum(min(dfrT$BSFRF,na.rm=TRUE),digits=2)` to `r prettyNum(max(dfrT$BSFRF,na.rm=TRUE),digits=2)` ^o^C. Although one paired haul exhibited a large difference between the measured bottom temperatures for the two gear types (`r prettyNum(mxDiffT,digits=2)` ^o^C), the minimum, maximum, and mean differences excluding this paired haul were small (`r prettyNum(minDiffTp,digits=2)`, `r prettyNum(maxDiffTp,digits=2)`, and `r prettyNum(mnDiffTp,digits=2)` ^o^C, respectively; [@fig-BottomTemps]).
+
+```{r tbl.PairedHauls}
+#| results: asis
+  cap = "Summary of SBS paired hauls, by study year. Area swept is in square nautical miles, bottom depth in meters, and bottom temperature in degrees centigrade. NA: no value."
+  kblADT = tblrADT |> wtsQMD::convert_tblr_to_kbl(c(1,2,4,6,8,10,12),
+                                                  isPDF=wtsQMD::isOutputPDF());
+  lstTbls = c(lstTbls,
+              insertKblIntoQMD(kblADT,
+                               lbl="tbl-PairedHauls", 
+                               cap=cap,
+                               ori="L"));
+  rm(cap,kblADT);
+``` 
+
+```{r}
+#| label: fig-AreasSwept
+#| fig-cap: "Comparison of areas swept by the NMFS (x-axis) and BSFRF (y-axis) gear types. Each histogram is normalized by its maximum to show relative frequencies across bins."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figASs$p));
 ```
 
 ```{r}
+#| label: fig-AreasSweptRatios
+#| fig-cap: "Ratios of haul-specific area swept by the NMFS and BSFRFs gears."
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figASRs$p));
+```
+
+```{r}
+#| label: fig-HaulDepths
+#| fig-cap: "Comparison of the difference (NMFS-BSFRF) paired-haul depths, by NMFS haul depth. Colour indicates the year each haul was conducted. The smooth line (and shading) indcates the overall trend with depth. The dotted line indicates the mean difference."
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figHDs$p));
+```
+
+```{r}
+#| label: fig-BottomTemps
+#| fig-cap: "Comparison of measured bottom temperatures by paired haul, with the largest difference excluded to show detail. The difference (NMFS-BSFRF) between the paired haul depths is plotted against the NMFS haul depth. Colour indicates the year each haul was conducted. The smooth line (and shading) indcates the overall trend with depth. The inset shows the same, but with the largest difference included."
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figBTs$p));
+```
+
+```{r SBSDataResults_GetStep3}
+  lst3 = wtsUtilities::getObj(file.path(prj_setup$dirs$SBS_Data,"rda_Step3_SBS_CrabAbundance.RData"));
+  objs3 = names(lst3);
+  for (obj in objs3) assign(obj,lst3[[obj]]);
+```
+
+### Catch data
+
+On average, the NMFS gear tended to catch more crab per haul at all but the smallest sizes compared with the BSFRF gear, largely reflecting the larger area swept by the NMFS gear during any given haul (Figures [-@fig-RawNumbersMales] and [-@fig-RawNumbersFemales]). Pulses of small crab (< 25 mm CW) were apparent in the BSFRF catch in every year except 2014, but absent from the NMFS catch. The percentage of hauls for which crab were caught varied with sex, size bin, and gear type across the SBS study years, generally reflecting the patterns obtained for the number of crabs caught (Figures [-@fig-PctNon0sCPUEMales] and [-@fig-PctNon0sCPUEFemales]). Percentages ranged from almost 0 (NMFS gear, 2013-2015, crab size < 25 mm CW) to > 80% (BSFRF gear, 2017 and 2018, crab size < 25 mm CW). Hauls with the BSFRF gear exhibited higher percentages of catches with small crab in most years, relative to the NMFS gear (2014 and 2015 being the exceptions, with very few hauls catching small crab for either gear type). Hauls with the NMFS gear exhibited higher percentages (~65%) of catches with large males (> 80 mm CW) in all years relative to the BSFRF gear (~45%), but for large females (> 75 mm CW) only in 2013 and 2014 (30-45% vs 20-30%, respectively; otherwise, the percentages were similar for the two gear types). For both gear types, the percentage of hauls in which crab < 50 mm CW were caught were similar for both sexes (Figures [-@fig-PctNon0sCPUEBSFRF] and [-@fig-PctNon0sCPUENMFS]). For larger crab, both gear types also exhibited similar patterns by sex, although these differed by year. 
+
+Changes in the abundance of crab catches or percentage of hauls with crab across years did not necessarily indicate similar changes in the EBS Tanner crab stock because the former were the result of changes in the SBS study area each year confounded with changes in abundance and distribution of the Tanner crab population itself. Thus, for example, it is unknown to what extent the dramatic increases in catch of small crab in 20116-2018 relative to 2013-2015 were associated with actual recruitment events or were the result of the shifts in the SBS study areas westward from Bristol Bay (2013-2015) towards the Pribilof Islands (2016-2018).
+
+```{r}
 #| label: fig-RawNumbersMales
-#| fig-cap: "Total numbers of males sampled (measured) in the SBS studies, by 5-mm size bin and gear type (solid lines). Also shown are the estimated numbers caught prior to any sub-sampling, by 5-mm size bin and gear type (dotted lines)."
-  plotTotRawZCs(dfrZCs_RawTot,"MALE",total,"males");
+#| fig-cap: "Total numbers of males sampled (measured) in the SBS studies, by 5-mm size bin and gear type (solid lines). Also shown are estimates of the actual numbers caught (i.e., prior to any sub-sampling; dotted lines). The dotted vertical line marks the lower limit of the size bins used in the assessment."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figRawNumbersMales$p));
 ```
 
 ```{r}
 #| label: fig-RawNumbersFemales
-#| fig-cap: "Total numbers of females sampled (measured) in the SBS studies, by 5-mm size bin and gear type (solid lines). Also shown are the estimated numbers caught prior to any sub-sampling, by 5-mm size bin and gear type (dotted lines)."
-plotTotRawZCs(dfrZCs_RawTot,"FEMALE",total,"females");
-```
-
-```{r calcTotNMFSPropByZB}
-dfrTotNMFSProps = 
-  dfrZCs_RawTot |> dplyr::select(!ss) |>
-    tidyr::pivot_wider(names_from=gear,values_from="total") |> 
-    dplyr::mutate(total=NMFS+BSFRF,
-                  propNMFS=NMFS/total,
-                  type=factor(type,levels=c("sampled","caught")));
-```
-
-```{r createPlotTotPropsByZB}
-clrs_numtype = c(sampled="cyan",caught="red");
-plotTotPropsByZB<-function(dfr_,sex_,col,label){
-  p = ggplot(dfr_ |> dplyr::filter(sex==sex_),
-             aes(x=size,y={{col}},colour=type,linetype=type)) + 
-        geom_line() + 
-        geom_point(aes(size=total),shape=21) + 
-        geom_vline(xintercept=25,linetype=3) + 
-        scale_size_area() + 
-        scale_colour_discrete(type=clrs_numtype) + 
-        ylim(0,1) + 
-        facet_wrap(~year,nrow=2,scales="free_y") + 
-        labs(x="size (mm CW)",y=paste0("Proportion total in NMFS gear (",label,")")) + 
-        theme(legend.position="top",
-              legend.box.just="top",
-              legend.justification=c(0,0.5),
-              legend.direction="horizontal") +
-        wtsPlots::getStdTheme();
-  return(p);
-}
-dfr = dfrTotNMFSProps |> dplyr::arrange(rev(type)) |> 
-        dplyr::rowwise() |> dplyr::mutate(total=min(total,500));
-```
-```{r}
-#| label: fig-TotRawPropsMales
-#| fig-cap: "Total numbers of males sampled (measured) in the SBS studies, by 5-mm size bin and gear type (solid lines). Also shown are the estimated numbers caught prior to any sub-sampling, by 5-mm size bin and gear type (dotted lines)."
-plotTotPropsByZB(dfr,"MALE",  propNMFS,"males");
-```
-```{r}
-#| label: fig-TotRawPropsFemales
-#| fig-cap: "Total numbers of males sampled (measured) in the SBS studies, by 5-mm size bin and gear type (solid lines). Also shown are the estimated numbers caught prior to any sub-sampling, by 5-mm size bin and gear type (dotted lines)."
-plotTotPropsByZB(dfr,"FEMALE",propNMFS,"females")
-```
-
-```{r calcNMFSPropsByStn}
-dfrNMFSPropsByStn = 
-  dfrZCs_RawByStn |> 
-    tidyr::pivot_longer(c(sampled,caught),names_to="type",values_to="total") |> 
-    dplyr::select(!ss) |>
-    tidyr::pivot_wider(names_from=gear,values_from="total") |> 
-    dplyr::mutate(total=NMFS+BSFRF,
-                  propNMFS=NMFS/total,
-                  type=factor(type,levels=c("sampled","caught")));
-```
-
-```{r }
-clrs_numtype = c(sampled="cyan",caught="red");
-plotPropsByStnZB<-function(dfr_,sex_,col,label){
-  p = ggplot(dfr_ |> dplyr::filter(sex==sex_),
-             aes(x=size,y={{col}},colour=type,linetype=type)) + 
-        geom_smooth(colour="black",method=stats::loess,formula=y~x) + 
-        geom_point(aes(size=total),shape=21) + 
-        geom_vline(xintercept=25,linetype=3) + 
-        scale_size_area() + 
-        scale_colour_discrete(type=clrs_numtype) + 
-        ylim(0,1) + 
-        facet_wrap(~year,nrow=2,scales="free_y") + 
-        labs(x="size (mm CW)",y=paste0("Proportion in NMFS gear by station (",label,")")) + 
-        theme(legend.position="top",
-              legend.box.just="top",
-              legend.justification=c(0,0.5),
-              legend.direction="horizontal") +
-        wtsPlots::getStdTheme();
-  return(p);
-}
-dfr = dfrNMFSPropsByStn |> dplyr::arrange(rev(type)) |> 
-        dplyr::rowwise() |> dplyr::mutate(total=min(total,500));
-```
-```{r}
-#| label: fig-RawPropsByStnnMales
-#| fig-cap: "Raw proportion of total males sampled (measured) using NMFS gear, by station and 5-mm size bin (circles; area indicates total number sampled across both gear types). Also shown is a loess smooth (black line and shading."
-plotPropsByStnZB(dfr |>dplyr::filter(type=="sampled"),"MALE",propNMFS,"males")
-```
-```{r}
-#| label: fig-RawPropsByStnnMales
-#| fig-cap: "Raw proportion of total males sampled (measured) using NMFS gear, by station and 5-mm size bin (circles; area indicates total number sampled across both gear types). Also shown is a loess smooth (black line and shading."
-plotPropsByStnZB(dfr |>dplyr::filter(type=="sampled"),"MALE",propNMFS,"males")
-```
-```{r}
-#| label: fig-RawPropsByStnFemales
-#| fig-cap: "Raw proportion of total females sampled (measured) using NMFS gear, by station and 5-mm size bin (circles; area indicates total number sampled across both gear types). Also shown is a loess smooth (black line and shading."
-plotPropsByStnZB(dfr |>dplyr::filter(type=="sampled"),"FEMALE",propNMFS,"females")+xlim(0,130)
+#| fig-cap: "Total numbers of females sampled (measured) in the SBS studies, by 5-mm size bin and gear type (solid lines). Also shown are estimates of the actual numbers caught (i.e., prior to any sub-sampling; dotted lines). The dotted vertical line marks the lower limit of the size bins used in the assessment."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figRawNumbersFemales$p));
 ```
 
 ```{r}
-#--compare areas swept, depth, and temperature
-dfrADT = dplyr::bind_rows(
-              lst$dfrHD_BSFRF_SBS |> 
-                dplyr::select(YEAR,station=GIS_STATION,area_swept=AREA_SWEPT_VARIABLE,
-                              depth=BOTTOM_DEPTH,temp=GEAR_TEMPERATURE) |> 
-                dplyr::rename_with(tolower,everything()) |> 
-                dplyr::mutate(gear="BSFRF"),
-              lst$dfrHD_NMFS_SBS |> 
-                dplyr::select(YEAR,station=GIS_STATION,area_swept=AREA_SWEPT_VARIABLE,
-                              depth=BOTTOM_DEPTH,temp=GEAR_TEMPERATURE) |> 
-                dplyr::rename_with(tolower,everything()) |> 
-                dplyr::mutate(gear="NMFS"));
+#| label: fig-PctNon0sCPUEMales
+#| fig-cap: "The percentage of non-zero catch hauls for males in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figPctNon0sCPUEMales$p));
 ```
+
 ```{r}
-#| label: fig-AreasSwept
-#| fig-cap: "Comparison of areas swept by the NMFS (x-axis) and BSFRF (y-axis) gear types. Each histogram is normalized by its maximum to show relative frequencies across bins."
-#| warning: false
-#| echo: false
-dfr = dfrADT |> 
-        tidyr::pivot_wider(id_cols=c("year","station"),names_from="gear",values_from="area_swept");
-xmx = max(dfr$NMFS,na.rm=TRUE);
-ymx = max(dfr$BSFRF,na.rm=TRUE);
-wtsPlots::ggMarginal_Hist2D(dfr,NMFS,BSFRF,xlab="NMFS area swept",ylab="BSFRF area swept",
-       xparams=list(limits=c(0,xmx)),yparams=list(limits=c(0,ymx)),
-       legend.position=c(0.1,0.99),legend.justification=c(0,1))
+#| label: fig-PctNon0sCPUEFemales
+#| fig-cap: "The percentage of non-zero catch hauls for females in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figPctNon0sCPUEFemales$p));
 ```
+
 ```{r}
-#| label: fig-HaulDepths
-#| fig-cap: "Comparison of haul depths, by paired haul, for the NMFS (x-axis) and BSFRF (y-axis) gear types. Note that it is the difference between the NMFS and BSFRF haul depths that is plotted against the NMFS haul depth. Colour indicates the year each haul was conducted. The smooth line (and shading) indcates the overall trend with depth."
-#| warning: false
-#| echo: false
-dfr = dfrADT |> 
-        tidyr::pivot_wider(id_cols=c("year","station"),names_from="gear",values_from="depth");
-xmx = max(dfr$NMFS,na.rm=TRUE);
-ymx = max(dfr$BSFRF,na.rm=TRUE);
-# wtsPlots::ggMarginal_Hist2D(dfr,NMFS,BSFRF,xlab="NMFS haul depth",ylab="BSFRF haul depth",
-#        xparams=list(limits=c(0,xmx)),yparams=list(limits=c(0,ymx)),
-#        legend.position=c(0.1,0.99),legend.justification=c(0,1));
-# p1 = ggplot(dfr,aes(x=NMFS,y=BSFRF,colour=as.character(year))) + 
-#   geom_point(shape=22) + geom_abline(slope=1,linetype=2) + 
-#   labs(x="NMFS haul depth (m)",y="BSFRF haul depth (m)",colour="year") + 
-#   thm + theme(legend.position=c(0.01,0.99),legend.justification=c(0,1));
-ggplot(dfr,aes(x=NMFS,y=NMFS-BSFRF,colour=as.character(year))) + 
-  geom_smooth(colour="black") + 
-  geom_point(shape=22) + geom_hline(yintercept=0,linetype=2) + 
-  labs(x="NMFS haul depth (m)",y="NMFS-BSFRF haul depth (m)",colour="year") + 
-  thm + theme(legend.position=c(0.01,0.99),legend.justification=c(0,1));
+#| label: fig-PctNon0sCPUEBSFRF
+#| fig-cap: "The percentage of non-zero catch hauls for the BSFRF gear in the SBS studies, by 5-mm size bin and sex. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figPctNon0sCPUEBSFRF$p));
 ```
+
 ```{r}
-#| label: fig-BottomTemps
-#| fig-cap: "Comparison of measured bottom temperatures, by paired haul, from the NMFS (x-axis) and BSFRF (y-axis) gear types. Note that it is the difference between the NMFS and BSFRF haul depths that is plotted against the NMFS haul depth. Colour indicates the year each haul was conducted. The smooth line (and shading) indcates the overall trend with depth."
-#| warning: false
-#| echo: false
-dfr = dfrADT |> 
-        tidyr::pivot_wider(id_cols=c("year","station"),names_from="gear",values_from="temp");
-xmx = max(dfr$NMFS,na.rm=TRUE);
-ymx = max(dfr$BSFRF,na.rm=TRUE);
-# wtsPlots::ggMarginal_Hist2D(dfr,NMFS,BSFRF,xlab="NMFS bottom temperature",ylab="BSFRF bottom temperature",
-#        xparams=list(limits=c(0,xmx)),yparams=list(limits=c(0,ymx)),
-#        legend.position=c(0.1,0.99),legend.justification=c(0,1));
-# ggplot(dfr,aes(x=NMFS,y=BSFRF,colour=as.character(year))) + 
-#   geom_point(shape=22) + geom_abline(slope=1,linetype=2) + 
-#   labs(x="NMFS bottom temperature",y="BSFRF bottom temperature",colour="year") + 
-#   thm + theme(legend.position=c(0.01,0.99),legend.justification=c(0,1));
-ggplot(dfr,aes(x=NMFS,y=NMFS-BSFRF,colour=as.character(year))) + 
-  geom_smooth(colour="black") + 
-  geom_point(shape=22) + geom_hline(yintercept=0,linetype=2) + 
-  labs(x="NMFS bottom temperature",y="NMFS-BSFRF bottom temperature",colour="year") + 
-  thm + theme(legend.position=c(0.01,0.01),legend.justification=c(0,0));
+#| label: fig-PctNon0sCPUENMFS
+#| fig-cap: "The percentage of non-zero catch hauls for the NMFS gear in the SBS studies, by 5-mm size bin and sex. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figPctNon0sCPUENMFS$p));
+```
+
+After scaling the numbers of sampled crab for sampling fractions and areas swept by the gear to catch-per-unit-effort (CPUE) by haul, the BSFRF gear was generally more efficient (i.e., it had a comparatively higher CPUE) than the NMFS gear across the size range for both sexes (Figures [-@fig-StatsCPUEMales] and [-@fig-StatsCPUEFemales]). The associated CVs were large (>1 at all sizes for both sexes and gear types) and exhibited similar, somewhat U-shaped, curves: relatively high for small crab decreasing, decreasing to lower (but still large) values at intermediate sizes, then increasing again at large sizes (Figures [-@fig-CVsCPUEMales] and [-@fig-CVsCPUEFemales]). 
+
+
+```{r}
+#| label: fig-StatsCPUEMales
+#| fig-cap: "Male CPUE in the SBS studies, by 5-mm size bin and gear type. Solid lines: mean; shaded area: empirical 90% CI. The dotted vertical line marks the lower limit of the size bins used in the assessment. The y-axis is on a log scale to facilitate comparison across the range of values."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figStatsCPUEMales$p));
+```
+
+```{r}
+#| label: fig-StatsCPUEFemales
+#| fig-cap: "Female CPUE in the SBS studies, by 5-mm size bin and gear type. Solid lines: mean; shaded area: empirical 90% CI. The dotted vertical line marks the lower limit of the size bins used in the assessment. The y-axis is on a log scale to facilitate comparison across the range of values."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figStatsCPUEFemales$p));
+```
+
+```{r}
+#| label: fig-CVsCPUEMales
+#| fig-cap: "CVs for male CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment. The horizontal line indicates a CV of 1."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figCVsCPUEMales$p));
+```
+
+```{r}
+#| label: fig-CVsCPUEFemales
+#| fig-cap: "CVs for female CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment. The horizontal line indicates a CV of 1."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(figCVsCPUEFemales$p));
+```
+
+### Mean-variance analysis
+
+```{r SBSDataResults_GetStep4}
+  lst4 = wtsUtilities::getObj(file.path(prj_setup$dirs$SBS_Data,"rda_Step4_SBS_VarVsMeanCPUE_Analysis.RData"));
+```
+
+The number of hauls for which no crab were caught within a size bin suggests that the SBS CPUE data may be better represented as arising from non-negative compound distributions that combine a discrete probability of obtaining a 0 with a continuous distribution that describes the conditional probability of obtaining a (positive) value given that the value is non-zero. The Tweedie family of distributions [@Tweedie1984] are a subset of exponential dispersion models that include the normal, Poisson, gamma, and compound Posson-gamma distributions, among others, as special cases. Distributions consistent with the Tweedie exponential family exhibit variance-mean relationships of the form 
+
+$$V =\sigma^2 \mu^{p_{tw}}$$ {#eq-TweedieVMRel}
+
+where $V$ represents the variance of some random variable, $\mu$ represents its mean, $\sigma$ is a positive scaling coefficient, and $p_{tw}$ is the so-called Tweedie power parameter. The normal, Poisson  ($p_{tw}=1$), and gamma ($p_{tw}=2$) distributions are obtained when$p_{tw}$ =0, 1,or 2, respectively. For $1 < p_{tw} < 2$, the distributions are compound Poisson-gamma distributions, with positive mass at 0 but otherwise positive and continuous. Taylor's Law in ecology [@XiaoEtAl2015], relating the variance of the number of individuals of a species per unit area of habitat to some power of the corresponding mean, can be viewed as a result of individuals undergoing dispersion consistent with a Tweedie distribution. 
+
+[@eq-TweedieVMRel] implies a linear relationship between $ln(V)$ and $ln(\mu)$:
+
+$$ln(V) = \alpha + p_{tw} \cdot ln(\mu) $$ {#eq-TweedieLnVMRel}
+
+Figures [-@fig-VarVsMeanCPUEBySex] and [-@fig-VarVsMeanCPUEByFleet] suggest the relationship between the ln-scale variance and mean is close to linear, although it also appears to be slightly convex when treating results across years and size bins as equivalent. Ignoring the latter detail as a simplifying assumption, we fit the following model for the annual variance in CPUE $V$ by gear type, sex, year, and size bin ($g,x,y,z$) as a function of the associated mean CPUE $\mu_{g,x,y,z}$
+
+$$ln(V_{g,x,y,z}) = \alpha + \sum_{g,x}{\delta\alpha_{g,x}} + \beta \cdot ln(\mu_{g,x,y,z}) + \sum_{g,x} \delta \beta_{g,x} \cdot ln(\mu_{g,x,y,z}) + \epsilon_{g,x,y,z} \mbox{;} ~~\mbox{where}~\epsilon_{g,x,y,z} \sim N(0,{\sigma_\epsilon}^2)$$ {#eq-TweedieLnVMmdl}
+
+where $\alpha$ and $\beta$ are fixed effects representing the common ln-scale intercept and slope for the linear relationship between $ln(V)$ and the covariate $ln(\mu)$ expected for a Tweedie-distributed process, the $\delta\alpha_{g,x}$ and $\delta\beta_{g,x}$ represent factor combination-specific offsets to the common intercept and slope parameters, and $\epsilon_{g,x,y,z}$ is the error term, which was assumed to be normally-distributed with mean 0 and variance ${\sigma_\epsilon}^2$. We also fit a "reduced" (i.e., simplified) version of @eq-TweedieLnVMmdl that included only the common slope term by fixing the $\delta\beta_{g,x}$ coefficients to 0.
+
+Using the Bayesian Information Criterion [BIC; @refBIC], the reduced model was found to provide a better, more parsimonious fit to the data than the full model ([@tbl-TweediePowerAnalysis]; the difference in BIC was `r formatC(lst4$mdlsTWP$dfrBIC[["delta(BIC)"]][2],digits=2)` units): the factor-specific interaction terms did not improve the fit substantially when offset by the increase in model complexity. A quantile-quantile plot of the residuals did not indicate any issues with the model ([@fig-QQ-mdlTWP]), although a plot of the residuals against the model predictions showed evidence of the slight convexity previously noted ([@fig-DRs-mdlTWP]). The estimated Tweedie power parameter (the common slope) was `r prettyNum(unname(lst4$mdlsTWP$reduced$coefficients["lnmn"]),digits=4)`.
+
+```{r, eval=FALSE}
+#| label: fig-VMRsCPUEMales
+#| fig-cap: "VMRs for male CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment. The horizontal line indicates a VMR of 1."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst4$`fig-VMRsCPUEMales`$p));
+```
+
+```{r, eval=FALSE}
+#| label: fig-VMRsCPUEFemales
+#| fig-cap: "VMRs for female CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment. The horizontal line indicates a VMR of 1."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst4$`fig-VMRsCPUEFemales`$p));
+```
+
+```{r}
+#| label: fig-VarVsMeanCPUEBySex
+#| fig-cap: "Variance in CPUE by 5 mm CW size bin plotted against mean CPUE, on the natural logarithm scale. Symbols: observed values (circles: females; triangles: males); colored shading/line: GAM smooth fits to observed values; dotted lines: linear regressions; solid black line: 1:1 line."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst4$`fig-VarVsMeanCPUEBySex`$p));
+```
+
+```{r}
+#| label: fig-VarVsMeanCPUEByFleet
+#| fig-cap: "Variance in CPUE by 5 mm CW size bin plotted against mean CPUE, on the natural logarithm scale. Symbols: observed values (circles: BSFRF; triangles: NMFS); colored shading/line: GAM smooth fits to observed values; dotted lines: linear regressions; solid black line: 1:1 line."
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst4$`fig-VarVsMeanCPUEBySex`$p));
+```
+
+```{r tbl.TweediePowerAnalysis}
+#| results: asis
+  cap = 'Results for the estimated power exponent based on fitting two linear regression models for the CPUE variance-to-mean relationship (calculated by gear type, sex, year, and size bin) expected for observations described by a Tweedie statistical distribution. The "reduced" model estimates a common intercept, individual intercepts (as offsets) for the sex and gear type factors, and a common slope for the ln-scale mean covariate. The "full" model additionally estimates (offset) slopes for each sex/fleet interaction term. See text for details. Only the estimated value for the common slope (the Tweedie power coefficient) is reported here. Based on the BIC scores, the reduced model provides a better (more parsimonious) fit to the data than the full model.'
+  kbl = modelsummary::modelsummary(lst4$mdlSmryTWP,
+                                          estimate="{estimate}",
+                                          statistic=c("CI"="[{conf.low}, {conf.high}]"),
+                                          shape=term~statistic,
+                                          coef_map=c("lnmn"="TW exponent"),
+                                          output="kableExtra")
+  lstTbls = c(lstTbls,
+              insertKblIntoQMD(kbl,
+                               lbl="tbl-TweediePowerAnalysis", 
+                               cap=cap,
+                               ori="P"));
+  rm(cap,kbl);
+```
+
+```{r}
+#| label: fig-QQ-mdlTWP
+#| fig-cap: Quantile-quantile plot of scaled residuals [@DHARMa] from the reduced model used to estimate the Tweedie power parameter for the observed CPUE data.
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst4$`fig-QQ-mdlTWP`$p));
+```
+
+```{r}
+#| label: fig-DRs-mdlTWP
+#| fig-cap: "Scaled residuals [@DHARMa] from the reduced model used to estimate the Tweedie power coefficient for the observed CPUE data."
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst4$`fig-DRs-mdlTWP`$p));
+```
+
+### Size compositions
+
+```{r SBSDataResults_GetStep5}
+  lst5 = wtsUtilities::getObj(file.path(prj_setup$dirs$SBS_Data,
+                                        "rda_Step5_BootZCs_AllResults.RData"));
+  nB = nrow(lst5$dfrBootZCs);
+```
+
+Because the SBS study areas differed by total area covered each year, to facilitate comparisons across years it was convenient to calculate gear/sex-specific annual size compositions $Z_{g,y,x,z}$ as the area-weighted mean CPUE for gear type $g$ over the SBS study area in year $y$ for sex $x$ in size bin $z$ using
+
+$$ Z_{g,y,x,z} = {{\sum_h a_{y,h} \cdot CPUE_{g,y,h,x,z}} \over {\sum_h a_{y,h}}}$$ 
+where $a_{y,h}$ denotes the NMFS station area associated with paired haul $h$ in year $y$ used to expand the CPUE to the total abundance in the area associated with the station, and the sum is over the paired hauls conducted in year $y$ (Tables [-@tbl-SurveyLevelZCsMales] and [-@tbl-SurveyLevelZCsFemales]; Figures [-@fig-BootZCs-Ms] and [-@fig-BootZCs-Fs]). The results are similar in size dependence and relative scale to the mean CPUE results (Figures [-@fig-StatsCPUEMales] and [-@fig-StatsCPUEFemales]), although the correspondence is not exact because the mean CPUE results were not weighted by NMFS station area. As with the mean CPUE,the BSFRF gear was generally more efficient (i.e., it had a comparatively higher estimates of total abundance) than the NMFS gear across sizes for both sexes in all years. 
+
+While it would have been possible to obtain variance estimates for the $Z_{g,y,x,z}$ based on assumptions of normality, given that the CPUE results appeared to be non-normal and better-described by a Tweedie distribution (see previous section), a two-stage bootstrap analysis was undertaken to characterize the variability of the size compositions. Briefly, the paired haul data was resampled on an annual basis `r lst5$nB` times using a two-stage, hierarchical empirical bootstrap and size compositions were recalculated for each replicate. For each bootstrap repetition for a given year, stage one consisted of randomly selecting, with replacement, $n_h$ paired hauls (where $n_h$ matched the number of actual paired hauls). Stage two then consisted of randomly selecting $n_{g,h,x}^i$ individuals by gear type and sex with replacement, where $n_{g,x}^i$ was the number of sex $x$ crab measured in the actual gear type $g$ haul. The resulting dataset was then processed identically to the actual dataset to obtain a bootstrapped size composition realization. 
+
+Despite the large number of repetitions, the bootstrapped size compositions exhibit instances of quantization for both gear types and sexes (Figures [-@fig-BootZCs-Ms] and [-@fig-BootZCs-Fs]), as exemplified for the BSFRF gear in 2013 and 2016 and the NMFS gear in 2015 in Figure [-@fig-BootZCs-Ms]. The quantization is a result of the fairly low percentage of hauls with non-zero catches of crab in the relevant size bins. The relative patterns between the two gear types (Figures [-@fig-StatsBootZCs-Ms] and [-@fig-StatsBootZCs-Fs]) are, unsurprisingly, similar to those for mean CPUE (Figures [-@fig-StatsCPUEMales] and [-@fig-StatsCPUEFemales]), with the BSFRF gear typically having higher values relative to the NMFS gear across the entire size range for both sexes (although exceptions exist for specific size bins in specific years, e.g. several size bins in 2015 for males). The CVs for the size compositions (Figures [-@fig-CVsBootZCs-Ms] and [-@fig-CVsBootZCs-Fs]) are all less than one and typically much smaller than those obtained with the haul-level CPUE results  (Figures [-@fig-CVsCPUEMales] and [-@fig-CVsCPUEFemales]).
+
+```{r tbl.SurveyLevelZCsMales}
+#| results: asis
+  cap = "Expanded total abundance size compositions (millions) for males from the SBS studies, by 5-mm size bin and gear type."
+  tblr = lst5$tblrSurveyLevelZCsMales
+  kbl = tblr |> wtsQMD::convert_tblr_to_kbl(c(1,1+c(2,4,6,8,10,12)),
+                                            isPDF=wtsQMD::isOutputPDF()) |> 
+        kableExtra::kable_styling(font_size=10);
+  lstTbls = c(lstTbls,
+              insertKblIntoQMD(kbl,
+                               lbl="tbl-SurveyLevelZCsMales", 
+                               cap=cap,
+                               ori="L"));
+  rm(cap,tblr,kbl);
+``` 
+
+```{r tbl.SurveyLevelZCsFemales}
+#| results: asis
+  cap = "Expanded total abundance size compositions (millions) for females from the SBS studies, by 5-mm size bin and gear type."
+  tblr = lst5$tblrSurveyLevelZCsFemales
+  kbl = tblr |> wtsQMD::convert_tblr_to_kbl(c(1,1+c(2,4,6,8,10,12)),
+                                            isPDF=wtsQMD::isOutputPDF());
+  lstTbls = c(lstTbls,
+              insertKblIntoQMD(kbl,
+                               lbl="tbl-SurveyLevelZCsFemales", 
+                               cap=cap,
+                               ori="L"));
+  rm(cap,tblr,kbl);
+``` 
+
+```{r}
+#| label: fig-BootZCs-Ms
+#| fig-cap: !expr lst5$`fig-BootZCs-Ms`$cap
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst5$`fig-BootZCs-Ms`$p));
+```
+
+```{r}
+#| label: fig-BootZCs-Fs
+#| fig-cap: !expr lst5$`fig-BootZCs-Fs`$cap
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst5$`fig-BootZCs-Fs`$p));
+```
+
+```{r}
+#| label: fig-StatsBootZCs-Ms
+#| fig-cap: !expr lst5$`fig-StatsBootZCs-Ms`$cap
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst5$`fig-StatsBootZCs-Ms`$p));
+```
+
+```{r}
+#| label: fig-StatsBootZCs-Fs
+#| fig-cap: !expr lst5$`fig-StatsBootZCs-Fs`$cap
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst5$`fig-StatsBootZCs-Fs`$p));
+```
+
+```{r}
+#| label: fig-CVsBootZCs-Ms
+#| fig-cap: !expr lst5$`fig-CVsBootZCs-Ms`$cap
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst5$`fig-CVsBootZCs-Ms`$p));
+```
+
+```{r}
+#| label: fig-CVsBootZCs-Fs
+#| fig-cap: !expr lst5$`fig-CVsBootZCs-Fs`$cap
+#| fig-asp: 1.0
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lst5$`fig-CVsBootZCs-Fs`$p));
 ```
 
 <!-- references -->
-```{r refs_SBSDataResults,eval=!knitr::opts_knit$get("child"),results='asis'}
+```{r refs_SBSDataResults,eval=!knitr::opts_knit$get("child")&(!isPDF),results='asis'}
   cat("# References {-}\n");
   cat("::: {#refs}\n");
   cat(":::\n\n");
@@ -397,5 +460,6 @@ ggplot(dfr,aes(x=NMFS,y=NMFS-BSFRF,colour=as.character(year))) +
 #| label: figures_SBSDataResults
 #| eval: !expr '!knitr::opts_knit$get("child")'
 #| results: asis
+  wtsUtilities::saveObj(lstFigs,"r_lstFigs.RData");
   source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
 ```

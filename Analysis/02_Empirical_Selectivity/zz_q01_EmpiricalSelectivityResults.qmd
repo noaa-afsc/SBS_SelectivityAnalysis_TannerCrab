@@ -8,7 +8,7 @@ number-sections: true
 number-depth: 3
 reference-location: document
 reference-section-title: References
-# bibliography: ../Bibliography/bib_SBS-TannerCrab-doc.bib 
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
 csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
 link-citations: true
 crossref:
@@ -28,7 +28,7 @@ format:
     toc: true
     toc-location: right
     fig-width: 8
-    fig-asp: 1.4
+    fig-asp: 0.4
     fig-dpi: 100
     embed-resources: true
   pdf:
@@ -36,6 +36,8 @@ format:
     toc: false
     fig_crop: false
     keep-tex: false
+    fig-width: 6.5
+    fig-asp: 0.4
     geometry:
       - left=1.0in
       - right=1.0in
@@ -48,11 +50,12 @@ format:
           \usepackage{placeins}
           \extrafloats{500}
           \maxdeadcycles=10000
-      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+      - file: !expr 'system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")'
+#      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
 echo: false
 warning: false
 results: 'hide'
-keep-md: false
+keep-md: true
 keep-yaml: false
 editor: source
 editor_options: 
@@ -297,19 +300,19 @@ calcEmpiricalSelectivity<-function(dfrSD_SBS,
                                  ylab="abundance (millions)",
                                  showPlot=FALSE) + wtsPlots::getStdTheme();
       pByX[["ZCs"]] = pl;
-      if (showPlot) print(pl);
+      #if (showPlot) print(pl);
       pl <- pl + ggplot2::scale_y_log10();
       pl <- pl + ggplot2::ylab("abundance (millions, log10-scale)");
       pByX[["lnZCs"]] = pl;
-      if (showPlot) print(pl);
+      #if (showPlot) print(pl);
       if (plotSmooths) {
         pl <- pl + ggplot2::scale_y_continuous(trans="identity");
         pl <- pl + ggplot2::ylab("abundance (millions)");
         pl <- pl + ggplot2::geom_smooth(alpha=0.3,linetype=2,
                                         method=smooths$method,formula=smooths$formula,
-                                        mapping=ggplot2::aes_string(colour="fleet",fill="fleet"));
+                                        mapping=ggplot2::aes(colour=fleet,fill=fleet));
         pByX[["smZCs"]] = pl;
-        if (showPlot) print(pl);
+        #if (showPlot) print(pl);
       }
     }
     #
@@ -337,7 +340,7 @@ calcEmpiricalSelectivity<-function(dfrSD_SBS,
                                                        method=smooths$method,formula=smooths$formula,
                                                        colour="blue",fill="blue");
       pByX[["ESs"]] = pl;
-      if (showPlot) print(pl);
+      #if (showPlot) print(pl);
       plots[[uX]] = pByX;
     }
     return(plots);
@@ -445,144 +448,150 @@ if (params$calcESs){
 }
 ```
 
-```{r EmpSel-CalcSelPlots-AnnualFs,eval=FALSE}
-#--females
-dfrZCsp<-dfrZCs[(dfrZCs$x=="female")&(dfrZCs$z<=125),];
-dfrESsp<-dfrESs[(dfrESs$x=="female")&(dfrESs$z<=125),];
-ps = plotEmpiricalSelectivity(dfrZCsp,dfrESsp,
-                              plotPoints=TRUE,
-                              points=list(alpha=0.2,size=3,dodge=0),
-                              plotLines=TRUE,
-                              plotViolins=FALSE,
-                              plotSmooths=TRUE,
-                              smooths=list(method="gam",formula=y~s(x,bs="cs",k=5),
-                                           knots=c(25,50,75,100,125)),
-                              showPlot=FALSE)[[1]];
-rm(dfrZCsp,dfrESsp);
-```
+<!-- ```{r EmpSel-CalcSelPlots-AnnualFs,eval=TRUE} -->
+<!-- #--females -->
+<!-- dfrZCsp<-dfrZCs[(dfrZCs$x=="female")&(dfrZCs$z<=125),]; -->
+<!-- dfrESsp<-dfrESs[(dfrESs$x=="female")&(dfrESs$z<=125),]; -->
+<!-- ps = plotEmpiricalSelectivity(dfrZCsp,dfrESsp, -->
+<!--                               plotPoints=TRUE, -->
+<!--                               points=list(alpha=0.2,size=3,dodge=0), -->
+<!--                               plotLines=TRUE, -->
+<!--                               plotViolins=FALSE, -->
+<!--                               plotSmooths=TRUE, -->
+<!--                               smooths=list(method="gam",formula=y~s(x,bs="cs",k=5), -->
+<!--                                            knots=c(25,50,75,100,125)), -->
+<!--                               showPlot=FALSE)[[1]]; -->
+<!-- rm(dfrZCsp,dfrESsp); -->
+<!-- ``` -->
 
-```{r}
-#| label: fig-EmpSel-AnnualZCsF
-#| fig-cap: "Annual expanded size compositions for female Tanner crab from SBS data."
-#| eval: false
-  lg = cowplot::get_legend(ps[["ZCs"]]+theme(legend.position="top",legend.margin=margin(0,0,0,0)));
-  p1 = ps[["ZCs"]]  +theme(legend.position="none",plot.margin=margin(t=0));
-  p2 = ps[["lnZCs"]]+theme(legend.position="none",plot.margin=margin(t=0));
-  pg1 = cowplot::plot_grid(p1,p2,nrow=1,rel_widths=c(1,1))
-  pg2 = cowplot::plot_grid(lg,pg1,ncol=1,rel_heights=c(1,12))
-  if (!isPDF) pg2 else {
-    lbl = getLabel();
-    cap = "Comparison of annual empirical estimates of survey selectivity.";
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
-  rm(lg,p1,p2,pg1,pg2)
-```
+<!-- ```{r} -->
+<!-- #| label: fig-EmpSel-AnnualZCsF -->
+<!-- #| fig-cap: "Annual expanded size compositions for female Tanner crab from SBS data." -->
+<!-- #| eval: true -->
+<!--   lg = cowplot::get_legend(ps[["ZCs"]]+theme(legend.position="top",legend.margin=margin(0,0,0,0))); -->
+<!--   p1 = ps[["ZCs"]]  +theme(legend.position="none",plot.margin=margin(t=0)); -->
+<!--   p2 = ps[["lnZCs"]]+theme(legend.position="none",plot.margin=margin(t=0)); -->
+<!--   pg1 = cowplot::plot_grid(p1,p2,nrow=1,rel_widths=c(1,1)) -->
+<!--   pg2 = cowplot::plot_grid(lg,pg1,ncol=1,rel_heights=c(1,12)) -->
+<!--   lstFigs = c(lstFigs,wtsQMD::printGGplot(pg2)); -->
+<!--   # if (!isPDF) pg2 else { -->
+<!--   #   lbl = getLabel(); -->
+<!--   #   cap = "Comparison of annual empirical estimates of survey selectivity."; -->
+<!--   #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext))); -->
+<!--   #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi); -->
+<!--   #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi); -->
+<!--   #   rm(lbl,cap,pth); -->
+<!--   # } -->
+<!--   rm(lg,p1,p2,pg1,pg2) -->
+<!-- ``` -->
 
-```{r}
-#| label: fig-EmpSel-AnnualEmpSelsF
-#| fig-cap: "Empirical estimates of annual survey selectivity for female Tanner crab from SBS data."
-#| eval: false
-if (!isPDF) ps[[4]]+theme(legend.position="none") else {
-  lbl = getLabel();
-  cap = "Comparison of annual empirical estimates of survey selectivity.";
-  pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-  lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-  ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-  rm(lbl,cap,pth);
-}
-rm(ps);
-```
+<!-- ```{r} -->
+<!-- #| label: fig-EmpSel-AnnualEmpSelsF -->
+<!-- #| fig-cap: "Empirical estimates of annual survey selectivity for female Tanner crab from SBS data." -->
+<!-- #| eval: true -->
+<!--   lstFigs = c(lstFigs,wtsQMD::printGGplot(ps[[4]]+theme(legend.position="none"))); -->
+<!-- # if (!isPDF) ps[[4]]+theme(legend.position="none") else { -->
+<!-- #   lbl = getLabel(); -->
+<!-- #   cap = "Comparison of annual empirical estimates of survey selectivity."; -->
+<!-- #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext))); -->
+<!-- #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi); -->
+<!-- #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi); -->
+<!-- #   rm(lbl,cap,pth); -->
+<!-- # } -->
+<!-- rm(ps); -->
+<!-- ``` -->
 
-```{r EmpSel-CalcSelPlots-AnnualMs,eval=FALSE}
-#--males
-dfrZCsp<-dfrZCs[(dfrZCs$x=="male")&(dfrZCs$z<=185),];
-dfrESsp<-dfrESs[(dfrESs$x=="male")&(dfrESs$z<=185),];
-ps = plotEmpiricalSelectivity(dfrZCsp,dfrESsp,
-                              plotPoints=TRUE,
-                              points=list(alpha=0.2,size=3,dodge=0),
-                              plotLines=TRUE,
-                              plotViolins=FALSE,
-                              plotSmooths=TRUE,
-                              smooths=list(method="gam",formula=y~s(x,bs="cs",k=7),
-                                           knots=c(25,50,75,100,125,150,175)))[[1]];
-rm(dfrZCsp,dfrESsp);
-```
+<!-- ```{r EmpSel-CalcSelPlots-AnnualMs,eval=TRUE} -->
+<!-- #--males -->
+<!-- dfrZCsp<-dfrZCs[(dfrZCs$x=="male")&(dfrZCs$z<=185),]; -->
+<!-- dfrESsp<-dfrESs[(dfrESs$x=="male")&(dfrESs$z<=185),]; -->
+<!-- ps = plotEmpiricalSelectivity(dfrZCsp,dfrESsp, -->
+<!--                               plotPoints=TRUE, -->
+<!--                               points=list(alpha=0.2,size=3,dodge=0), -->
+<!--                               plotLines=TRUE, -->
+<!--                               plotViolins=FALSE, -->
+<!--                               plotSmooths=TRUE, -->
+<!--                               smooths=list(method="gam",formula=y~s(x,bs="cs",k=7), -->
+<!--                                            knots=c(25,50,75,100,125,150,175)))[[1]]; -->
+<!-- rm(dfrZCsp,dfrESsp); -->
+<!-- ``` -->
 
-```{r}
-#| label: fig-EmpSel-AnnualZCsM
-#| fig-cap: "Annual expanded size compositions for male Tanner crab from SBS data."
-#| eval: false
-  lg = cowplot::get_legend(ps[["ZCs"]]+theme(legend.position="top",legend.margin=margin(0,0,0,0)));
-  p1 = ps[["ZCs"]]  +theme(legend.position="none",plot.margin=margin(t=0));
-  p2 = ps[["lnZCs"]]+theme(legend.position="none",plot.margin=margin(t=0));
-  pg1 = cowplot::plot_grid(p1,p2,nrow=1,rel_widths=c(1,1))
-  pg2 = cowplot::plot_grid(lg,pg1,ncol=1,rel_heights=c(1,12))
-  if (!isPDF) pg2 else {
-    lbl = getLabel();
-    cap = "Comparison of annual empirical estimates of survey selectivity.";
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
-  rm(lg,p1,p2,pg1,pg2)
-```
+<!-- ```{r} -->
+<!-- #| label: fig-EmpSel-AnnualZCsM -->
+<!-- #| fig-cap: "Annual expanded size compositions for male Tanner crab from SBS data." -->
+<!-- #| eval: true -->
+<!--   lg = cowplot::get_legend(ps[["ZCs"]]+theme(legend.position="top",legend.margin=margin(0,0,0,0))); -->
+<!--   p1 = ps[["ZCs"]]  +theme(legend.position="none",plot.margin=margin(t=0)); -->
+<!--   p2 = ps[["lnZCs"]]+theme(legend.position="none",plot.margin=margin(t=0)); -->
+<!--   pg1 = cowplot::plot_grid(p1,p2,nrow=1,rel_widths=c(1,1)) -->
+<!--   pg2 = cowplot::plot_grid(lg,pg1,ncol=1,rel_heights=c(1,12)) -->
+<!--   lstFigs = c(lstFigs,wtsQMD::printGGplot(pg2)); -->
+<!--   # if (!isPDF) pg2 else { -->
+<!--   #   lbl = getLabel(); -->
+<!--   #   cap = "Comparison of annual empirical estimates of survey selectivity."; -->
+<!--   #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext))); -->
+<!--   #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi); -->
+<!--   #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi); -->
+<!--   #   rm(lbl,cap,pth); -->
+<!--   # } -->
+<!--   rm(lg,p1,p2,pg1,pg2) -->
+<!-- ``` -->
 
-```{r}
-#| label: fig-EmpSel-AnnualEmpSelsM
-#| fig-cap: "Empirical estimates of annual survey selectivity for male Tanner crab from SBS data."
-#| eval: false
-if (!isPDF) ps[[4]]+theme(legend.position="none") else {
-  lbl = getLabel();
-  cap = "Comparison of annual empirical estimates of survey selectivity.";
-  pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-  lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-  ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-  rm(lbl,cap,pth);
-}
-rm(ps)
-```
+<!-- ```{r} -->
+<!-- #| label: fig-EmpSel-AnnualEmpSelsM -->
+<!-- #| fig-cap: "Empirical estimates of annual survey selectivity for male Tanner crab from SBS data." -->
+<!-- #| eval: true -->
+<!--   lstFigs = c(lstFigs,wtsQMD::printGGplot(ps[[4]]+theme(legend.position="none"))); -->
+<!-- # if (!isPDF) ps[[4]]+theme(legend.position="none") else { -->
+<!-- #   lbl = getLabel(); -->
+<!-- #   cap = "Comparison of annual empirical estimates of survey selectivity."; -->
+<!-- #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext))); -->
+<!-- #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi); -->
+<!-- #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi); -->
+<!-- #   rm(lbl,cap,pth); -->
+<!-- # } -->
+<!-- rm(ps) -->
+<!-- ``` -->
 
 ```{r}
 #| label: fig-EmpSel-NumbersSampled
 #| fig-cap: "Total numbers of crab sampled for the SBS studies."
 #--alernative version
-  p1 = ggplot(data=dfrZCs,mapping=aes_string(x="z",y="n",colour="fleet")) +
+  p1 = ggplot(data=dfrZCs,mapping=aes(x=z,y=n,colour=fleet)) +
          geom_line() + geom_point() +
          facet_grid(rows = y~x,scales = "free_y") +
          labs(x="size (mm CW)",y="crab sampled",colour="") + 
          # wtsPlots::getStdTheme() + 
          theme(legend.position="top");
-  if (!isPDF) print(p1) else {
-    lbl = getLabel();
-    cap = "Comparison of annual empirical estimates of survey selectivity.";
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  # if (!isPDF) print(p1) else {
+  #   lbl = getLabel();
+  #   cap = "Comparison of annual empirical estimates of survey selectivity.";
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
 ```
 
 ```{r}
 #| label: fig-EmpSel-SizeComps
 #| fig-cap: "Annual size compositions derived for the SBS studies."
-  p1 = ggplot(data=dfrZCs,mapping=aes_string(x="z",y="val",colour="fleet")) +
+  p1 = ggplot(data=dfrZCs,mapping=aes(x=z,y=val,colour=fleet)) +
          geom_line() + geom_point() +
          facet_grid(rows = y~x,scales = "free_y") +
          labs(x="size (mm CW)",y="abundance (millions)",colour="") + 
          # wtsPlots::getStdTheme() + 
          theme(legend.position="top")
-  if (!isPDF) print(p1) else {
-    lbl = getLabel();
-    cap = "Comparison of annual empirical estimates of survey selectivity.";
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  # if (!isPDF) print(p1) else {
+  #   lbl = getLabel();
+  #   cap = "Comparison of annual empirical estimates of survey selectivity.";
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
 ```
 
 ```{r}
@@ -591,23 +600,24 @@ rm(ps)
   tmp = dfrESs;
   tmp$totN = tmp$n_BSFRF+tmp$n_NMFS;
   tmp$y = factor(tmp$y)
-  p1 = ggplot(data=tmp,mapping=aes_string(x="z",y="emp_sel",colour="y",size="totN")) +
+  p1 = ggplot(data=tmp,mapping=aes(x=z,y=emp_sel,colour=y,size=totN)) +
          geom_point() + scale_size_area() + 
-         geom_line(mapping=aes_string(x="z",y="emp_sel",colour="y"),inherit.aes=FALSE) +
-         geom_smooth(mapping=aes_string(x="z",y="emp_sel"),inherit.aes = FALSE) +
+         geom_line(mapping=aes(x=z,y=emp_sel,colour=y),inherit.aes=FALSE) +
+         geom_smooth(mapping=aes(x=z,y=emp_sel),inherit.aes = FALSE) +
          facet_grid(rows = .~x,scales = "free_x") +
          labs(x="size (mm CW)",y="empirical\ncatchability",
               colour="study\nyear",size="crab\nsampled") + 
          # wtsPlots::getStdTheme() + 
          theme(legend.position=c(0.49,0.99),legend.justification=c(1,1));
-  if (!isPDF) print(p1) else {
-    lbl = getLabel();
-    cap = "Comparison of annual empirical estimates of survey selectivity.";
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  # if (!isPDF) print(p1) else {
+  #   lbl = getLabel();
+  #   cap = "Comparison of annual empirical estimates of survey selectivity.";
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
   rm(tmp,p1);
 ```
 
@@ -659,7 +669,7 @@ calcEstimates<-function(mod,zs,yfs){
 plotEstimates<-function(dfrPrdSel,nm){
   pl<-wtsPlots::plotMDFR.XY(dfrPrdSel,x="z",value.var="fit",colour="yf",facet_grid="yf~.",
                             ylim=c(0,1.2),plotLines=TRUE,plotPoints=FALSE,showPlot=FALSE) + 
-        ggplot2::geom_ribbon(mapping=ggplot2::aes_string(ymin="lci",ymax="uci"),alpha=0.4,fill="grey") +
+        ggplot2::geom_ribbon(mapping=ggplot2::aes(ymin=lci,ymax=uci),alpha=0.4,fill="grey") +
         ggplot2::labs(x="size (mm CW)",y="empirical selectivity") + 
         ggplot2::ggtitle(nm) + 
         wtsPlots::getStdTheme();
@@ -701,8 +711,8 @@ rm(x_,sex,dfrESsp,nm);
 ```{r}
 #| label: fig-EmpSelMods
 #| fig-cap: 
-#|   - !expr paste0("Model fits to empirical selectivity for ",sexes[1]," Tanner crab in the SBS studies.")
-#|   - !expr paste0("Model fits to empirical selectivity for ",sexes[2]," Tanner crab in the SBS studies.")
+#|   - !expr 'paste0("Model fits to empirical selectivity for ",sexes[1]," Tanner crab in the SBS studies.")'
+#|   - !expr 'paste0("Model fits to empirical selectivity for ",sexes[2]," Tanner crab in the SBS studies.")'
 #--plot model estimates of selectivity
 yfs<-uYs;
 dfrModEsts<-NULL;
@@ -716,7 +726,7 @@ for (x_ in 1:nXs){
   tmp$model_name<-nm1; 
   plt = plotEstimates(tmp,nm1);
   data=mdl1$model |> dplyr::mutate(w=`(weights)`);
-  p1 = plt + ggplot2::geom_point(data=data,mapping=ggplot2::aes_string(x="z",y="emp_sel",size="w")) +
+  p1 = plt + ggplot2::geom_point(data=data,mapping=ggplot2::aes(x=z,y=emp_sel,size=w)) +
              ggplot2::geom_hline(yintercept=c(0,0.5,1),linetype=3,colour="grey25") + 
              ggplot2::labs(colour="year",size="relative\nweight",title=NULL);
   tmp$z<-tmp$z+2;#--match z's in assessment
@@ -729,7 +739,7 @@ for (x_ in 1:nXs){
   tmp$model_name<-nm2;
   plt = plotEstimates(tmp,nm2);
   data=mdl2$model |> dplyr::mutate(w=`(weights)`,yf=" ");
-  p2 = plt + ggplot2::geom_point(data=data,mapping=ggplot2::aes_string(x="z",y="emp_sel",size="w")) +
+  p2 = plt + ggplot2::geom_point(data=data,mapping=ggplot2::aes(x=z,y=emp_sel,size=w)) +
              ggplot2::geom_hline(yintercept=c(0,0.5,1),linetype=3,colour="grey25") + 
              ggplot2::labs(colour="empirical",size="relative\nweight",title = NULL);
   tmp$z<-tmp$z+2;#--match z's in assessment
@@ -894,16 +904,17 @@ plotEmpSel<-function(dfr,colour,z_lim=c(22.5,187.5),n_min=0,wrap=TRUE){
   p2 = plotEmpSel(dfrESsp,colour=factor(y),z_lim=c(22.5,127.5),n_min=0,wrap=FALSE) +
          theme(legend.position=c(0.01,0.99),legend.justification=c(0,1));
   pg = cowplot::plot_grid(p1,p2,ncol=1);
-  if (!isPDF) print(pg) else {
-    lbl = getLabel();
-    cap = paste0("Boostrapped empirical selectivities for female Tanner crab in the SBS studies. ",
-                 "Upper plot: Annual SBS-derived selectivities (heavy line is mean value, yellow curve is smoothed fit); ",
-                 "lower plot: all SBS years combined, yellow curve is smoothed fit to all.");
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=pg,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg));
+  # if (!isPDF) print(pg) else {
+  #   lbl = getLabel();
+  #   cap = paste0("Boostrapped empirical selectivities for female Tanner crab in the SBS studies. ",
+  #                "Upper plot: Annual SBS-derived selectivities (heavy line is mean value, yellow curve is smoothed fit); ",
+  #                "lower plot: all SBS years combined, yellow curve is smoothed fit to all.");
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=pg,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
   rm(dfrESsp,p1,p2,pg);
 ```
 
@@ -917,16 +928,17 @@ plotEmpSel<-function(dfr,colour,z_lim=c(22.5,187.5),n_min=0,wrap=TRUE){
   p2 = plotEmpSel(dfrESsp,colour=factor(y),z_lim=c(22.5,187.5),n_min=0,wrap=FALSE) +
          theme(legend.position=c(0.01,0.99),legend.justification=c(0,1));
   pg = cowplot::plot_grid(p1,p2,ncol=1);
-  if (!isPDF) print(pg) else {
-    lbl = getLabel();
-    cap = paste0("Boostrapped empirical selectivities for male Tanner crab in the SBS studies. ",
-                 "Upper plot: Annual SBS-derived selectivities (heavy line is mean value, yellow is smoothed fit); ",
-                 "lower plot: all SBS years combined, yellow is smoothed fit to all.");
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=pg,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg));
+  # if (!isPDF) print(pg) else {
+  #   lbl = getLabel();
+  #   cap = paste0("Boostrapped empirical selectivities for male Tanner crab in the SBS studies. ",
+  #                "Upper plot: Annual SBS-derived selectivities (heavy line is mean value, yellow is smoothed fit); ",
+  #                "lower plot: all SBS years combined, yellow is smoothed fit to all.");
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=pg,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
   rm(dfrESsp,p1,p2,pg);
 ```
 
@@ -946,20 +958,21 @@ dfrStats$y<-factor(dfrStats$y)
 #| label: fig-EmpSel-BStats-MnCIs
 #| fig-cap: "Mean and 80% confidence intervals for annual empirical selectivity from bootstrapping analysis. Upper plot: females; lower plot: males. Results for different SBS study years are shown with different colors."
   pl<-wtsPlots::plotMDFR.XY(dfrStats,x="z",value.var="mean",
-                            plotLines=TRUE,plotPoints=FALSE,colour="y",facet_grid="x~.",showPlot=TRUE)
-  pl<-pl + ggplot2::geom_ribbon(mapping=aes_string(ymin="lci",ymax="uci",fill="y"),alpha=0.4,colour=NA);
+                            plotLines=TRUE,plotPoints=FALSE,colour="y",facet_grid="x~.",showPlot=FALSE)
+  pl<-pl + ggplot2::geom_ribbon(mapping=aes(ymin=lci,ymax=uci,fill=y),alpha=0.4,colour=NA);
   pl<-pl + ggplot2::labs(x="size (mm CW)",y="empirical selectivity",colour="year",fill="year");
   pl<-pl + ggplot2::geom_hline(yintercept=c(0,1),linetype=2,colour="grey50");
   pl<-pl + ggplot2::scale_y_continuous(limits=c(-0.5,2),oob=scales::squish);
   pl<-pl+wtsPlots::getStdTheme();
-  if (!isPDF) print(pl) else {
-    lbl = getLabel();
-    cap = paste0("Mean and 80% confidence intervals for annual empirical selectivity from bootstrapping analysis. Upper plot: females; lower plot: males. Results for different SBS study years are shown with different colors.");
-    pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
-    lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
-    ggsave(pth,plot=pg,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
-    rm(lbl,cap,pth);
-  }
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pl));
+  # if (!isPDF) print(pl) else {
+  #   lbl = getLabel();
+  #   cap = paste0("Mean and 80% confidence intervals for annual empirical selectivity from bootstrapping analysis. Upper plot: females; lower plot: males. Results for different SBS study years are shown with different colors.");
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=pg,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
 ```
 
 ```{r EmpSel-DefFcn-PlotMdlPred}
@@ -971,7 +984,7 @@ dfrStats$y<-factor(dfrStats$y)
     dfrPrdRes<-cbind(dfrPrd,fit=prd$fit,se=prd$se.fit,lci=cis$lci,uci=cis$uci);
     pl<-wtsPlots::plotMDFR.XY(dfrPrdRes,x="z",value.var="fit",colour="yf",
                               plotLines=TRUE,plotPoints=FALSE,showPlot=FALSE)
-    pl<-pl + ggplot2::geom_ribbon(mapping=aes_string(x="z",ymin="lci",ymax="uci",fill="yf"),alpha=0.4,colour=NA,inherit.aes=FALSE);
+    pl<-pl + ggplot2::geom_ribbon(mapping=aes(x=z,ymin=lci,ymax=uci,fill=yf),alpha=0.4,colour=NA,inherit.aes=FALSE);
     pl<-pl + ggplot2::labs(x="size (mm CW)",y="empirical selectivity",fill="year",colour="year");
     pl<-pl + ggplot2::ggtitle(nm); 
     pl<-pl + ggplot2::geom_hline(yintercept=c(0,1),linetype=2);
@@ -1012,6 +1025,7 @@ if (FALSE){
 
 ```{r, dependson="EmpSel-BStats-FitModels",results="asis"}
 #| label: EmpSel-BStats-Models
+#| fig-asp: 1.4
   #--print results for the models
   zs<-list(male  =seq(27,182,by=5),
            female=seq(27,127,by=5));
@@ -1093,7 +1107,7 @@ for (x_ in c("male","female")){
 ```
 
 <!-- references -->
-```{r,eval=!knitr::opts_knit$get("child"),results='asis'}
+```{r,eval=!knitr::opts_knit$get("child")&(!isPDF),results='asis'}
   cat("# References {-}\n");
   cat("::: {#refs}\n");
   cat(":::\n\n");

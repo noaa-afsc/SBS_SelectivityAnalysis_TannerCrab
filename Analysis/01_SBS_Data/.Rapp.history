@@ -1,0 +1,2 @@
+load("/Users/williamstockhausen/Work/Projects/TannerCrab_SBS_SelectivityAnalysis/Analysis/01_SBS_Data/rda_Step1_SBS_RawData.RData")
+View(obj)

@@ -1,4 +1,3 @@
-
 .DS_Store
 *.RData
 *.html
@@ -8,5 +7,7 @@
 /SedimentsAnalysis.gdb/
 /figures/
 /tables/
-
-
+q01_SedimentData.pdf.md
+q02_SedimentAnalyses.html.md
+q02_SedimentAnalyses.pdf.md
+r_ListForFiguresInfo.csv

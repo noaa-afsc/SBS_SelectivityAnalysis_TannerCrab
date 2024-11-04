@@ -1,0 +1,37 @@
+NOTE on mgcv::gam models with random factor smooth (bs="fs") terms
+
+As an example, take the model 
+    `o ~ s(z) + s(z,y,bs="fs")` 
+where `o` represnts the observations, `z` is a covariate and `y` is a factor 
+representing the random effects. 
+
+The interpretation of this model is that `s(z)` is the mean response in the 
+absence of any random effects while the `s(z,y)`, term represents the interaction 
+between `z` and the random effects categorized by `y`. 
+
+If the estimated reponse `r` is regarded as a function of `z` and `y`, then 
+r(z|y) = r(z,y) is the estimated response given the random factor `y`.Because `y` 
+represents random effects, the real interest is not in the response for any 
+particular observed level of `y`, but rather it is in the expected reponse for 
+any `y`, i.e. the expected marginal response 
+   `r(z) = Integral_y r(z|y)*p(y)*dy`
+which, if the random effects are considered iid, implies 
+    `r(z) = s(z)`.
+    
+However, it is important to note that the *uncertainty* associated with `r(z)` is 
+**not** the same as the uncertainty associated with only `s(z)`, but also 
+includes the uncertainty associated with the random effects.
+
+Setting up the data and model
+  1. Data: convert `y` to a factor and add an additional level not already in `y`, e.g.
+    dfrESsp1 = dfrESsp |> dplyr::mutate(y=factor(as.character(y),levels=c("1",levels(y))));
+  2. Model: define the gam model with a smooth term `s(z,y,b="fs")` [note: don't use `ti`] 
+            and set `drop.unused.levels=FALSE`, e.g.:
+    mdl4m = mgcv::gam(emp_sel ~ s(z,k=10) + s(z,y,bs="fs",k=10),
+                       family=tw,data=dfrESsp1,method="REML",
+                       weights=n_BSFRF/mean(n_BSFRF),
+                      drop.unused.levels=FALSE);
+  3. To obtain the estimated marginal response, define a new dataframe to use 
+     in the `predict` function that includes all values of `z` of interest and only 
+     the additional factor level for y. Include **all** model terms in the call to 
+     `predict`.

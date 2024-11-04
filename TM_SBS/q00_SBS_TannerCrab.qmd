@@ -1,8 +1,15 @@
 ---
-title: "SBS Studies: Sediment data"
-author: "William T. Stockhausen"
-institute: "AFSC/NMFS/NOAA"
-date: '`r format(Sys.time(), "%b %e, %Y")`'
+title: "Side-by-Side Survey Catchability Studies: Cooperative Research to Estimate Survey Catchability for Tanner Crab in the Eastern Bering Sea"
+author:
+- name: William T. Stockhausen
+  affiliations:
+    - id: afsc-refm
+      name: "Alaska Fisheries Science Center"
+      department: "Resource Ecology and Fisheries Management"
+      address: 
+        - "7600 Sand Point Way N.E."
+        - "Seattle, Washington 98115-6349"
+
 fontsize: 11pt 
 number-sections: true
 number-depth: 3
@@ -22,8 +29,9 @@ crossref:
   tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
   subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
   ref-hyperlink: true    # references are hyperlinked if true
-format: 
-  html: 
+format:
+  html:
+    theme: cosmo
     df-print: paged
     toc: true
     toc-location: right
@@ -31,11 +39,15 @@ format:
     fig-asp: 1.4
     fig-dpi: 100
     embed-resources: true
-  pdf:
-    documentclass: scrartcl
-    toc: false
+    include-in-header: 
+      - '`r system.file("files/in-line_math_mode.html",package="wtsQMD")`'
+  titlepage-pdf:
+    documentclass: scrartcl # scrbook
+#    classoption: ["oneside", "open=any"]
+#    titlepage: "plain"
     fig_crop: false
     keep-tex: false
+    fig-asp: 0.6
     geometry:
       - left=1.0in
       - right=1.0in
@@ -48,18 +60,26 @@ format:
           \usepackage{placeins}
           \extrafloats{500}
           \maxdeadcycles=10000
-#      - file: !expr 'system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")'
-#      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
-      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
+  docx:
+    toc: true
+    toc-depth: 2
+    reference-doc: template.docx
+    always_allow_html: true
+
 echo: false
 warning: false
 results: 'hide'
-keep-md: true
+keep-md: false
 keep-yaml: false
 editor: source
 editor_options: 
   chunk_output_type: console
 concordance: true
+
+metadata-files:
+  - _frontmatter.yml
+  
 params:
   setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
   testing: false
@@ -79,7 +99,7 @@ params:
 
 <!-- if not child doc, set up required objects -->
 ```{r}
-#| label: SedData_setup
+#| label: TechMemo_setup
 #| eval: !expr '!knitr::opts_knit$get("child")'
 #| results: "asis"
   testing = params$testing;
@@ -91,7 +111,7 @@ params:
 ```
 
 ```{r}
-#| label: setup_SedData
+#| label: setup_TechMemo
 #| results: 'asis'
   require(ggplot2);
   require(kableExtra);
@@ -103,29 +123,29 @@ params:
   thm = wtsPlots::getStdTheme();
   options("readr.show_col_types"=FALSE);
   if (testing) cat("dirThs =",child_path$peek(),"\n\n")
-
-  if (rstudioapi::isAvailable()){
-    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/03_Sediment_Analyses");
-  } else if (child_path$peek()!=""){
-    dirThs = child_path$peek();
-  } else {
-    dirThs = ".";
-  }
   ##--NOTE: take out or modify the following as necessary
-  if (!exists("s",mode="list")){
+  if (!exists("s")){
     if (rstudioapi::isAvailable())
       fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
     if (child_path$peek()!="")
-      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+      fn = file.path(child_path$peek(),"../rda_ProjectSetup.RData");
     #--for debugging: ;
     if (file.exists(fn)) s = wtsUtilities::getObj(fn);
   }
   ##--
 ```
 
-### Sediment data {#sec-SedData}
+<!-- ## Intro {#sec-Intro} -->
+```{r TM_Intro, child=file.path(child_path$peek(),"q01_Intro.qmd"),eval=FALSE}
+```
 
-Sediment characteristics may influence the vulnerability of Tanner crab to capture in the NMFS survey gear by affecting a crab's ability to bury in the sediment or by affecting the bottom-tending dynamics of the survey gear [@WeinbergAndKotwicki2008; @SomertonAndOtto1999; @SomertonEtAl2013]. The EBS shelf is characterized by large areas with reasonably homogeneous sediments due to its relatively broad, shallow shelf and the unusually small slope of its bottom [@EBSSED2]. Various grades of sand predominate overall, although significant concentrations of mud occur at greater-than-average depths. Gravel is rare and generally confined to nearshore areas. Because sediment characteristics vary spatially across the EBS, we interpolated point measurements reflecting mean grain size (in $\varphi$ units, i.e., negative log_2 of the diameter in mm) and sorting coefficient (reflecting the variance in grain size) at locations across the EBS from high resolution samples in the EBSSED-2 sediment database [@EBSSED2] to NMFS survey haul locations using the co-kriging geostatistics function of ArcGIS [@REF] to include as potential covariates in the SBS selectivity analysis for Tanner crab.
+<!-- ## Methods {#sec-Methods} -->
+```{r TM_Methods, child=file.path(child_path$peek(),"q02_Methods.qmd"),eval=FALSE}
+```
+
+<!-- ## Results {#sec-Results} -->
+```{r TM_Results, child=file.path(child_path$peek(),"q03_Results.qmd"),eval=FALSE}
+```
 
 <!-- references -->
 ```{r,eval=!knitr::opts_knit$get("child"),results='asis'}
@@ -136,7 +156,7 @@ Sediment characteristics may influence the vulnerability of Tanner crab to captu
 
 <!-- tables, if not child doc and lstTbls is not empty -->
 ```{r}
-#| label: tables_SedData
+#| label: tables_MAIN
 #| eval: !expr '!knitr::opts_knit$get("child")'
 #| results: asis
   source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
@@ -144,7 +164,7 @@ Sediment characteristics may influence the vulnerability of Tanner crab to captu
 
 <!-- figures, if not child doc and lstFigs is not empty -->
 ```{r}
-#| label: figures_SedData
+#| label: figures_MAIN
 #| eval: !expr '!knitr::opts_knit$get("child")'
 #| results: asis
   source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));

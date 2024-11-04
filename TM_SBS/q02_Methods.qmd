@@ -1,0 +1,353 @@
+---
+title: "SBS Studies: Methods"
+author:
+- name: William T. Stockhausen
+  affiliations:
+    - id: afsc-refm
+      name: "Alaska Fisheries Science Center"
+      department: "Resource Ecology and Fisheries Management"
+      address: 
+        - "7600 Sand Point Way N.E."
+        - "Seattle, Washington 98115-6349"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 8
+    fig-asp: 0.6
+    fig-dpi: 100
+    embed-resources: true
+    include-in-header: 
+      - '`r system.file("files/in-line_math_mode.html",package="wtsQMD")`'
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    fig-asp: 0.6
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
+echo: false
+warning: false
+results: 'hide'
+keep-md: false
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: Methods_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_Methods
+#| results: 'asis'
+  require(ggplot2);
+  require(kableExtra);
+  require(tables);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) warning("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/01_SBS_Data");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  ###--rda_ProjectSetup.RData should be located in the main directory for the project
+  if ((exists("s"))&&(class(s)=="list")){
+    warning("list 's' exists from parent document.")
+  } else {
+    warning("'s' does not exist, so will try to open 'rda_ProjectSetup.RData'.")
+    if (child_path$peek()!=""){
+      fn = file.path(child_path$peek(),"../rda_ProjectSetup.RData");
+      warning("setting fn from child_path$peek()");
+    } else {
+      warning("could not use child_path$peek to set fn");
+      if (rstudioapi::isAvailable()){
+        #--fall back to looking in project folder
+        fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+        warning("Setting fn using Active Project path");
+      } else {
+        warning("rstudioapi not available");
+        #--fall back to current working directory
+        fn = "rda_ProjectSetup.RData";
+      }
+    }
+    #--for debugging: ;
+    if (file.exists(fn)) {
+      s = wtsUtilities::getObj(fn);
+    } else  {stop(paste0("fn '",fn,"' does not exist!"));}
+  }
+```
+
+# Methods {#sec-Methods}
+
+## SBS data collection {#sec-Methods-SBS-DataCollection}
+
+The National Marine Fisheries' Alaska Science Center (NMFS AFSC) has conducted an annual design-based summer bottom trawl survey on the eastern Bering Sea continental shelf using standardized gear since 1982 [@LauthAndNichol2013], with the exception of 2020. A series of studies were conducted jointly by AFSC and the Bering Sea Fisheries Research Foundation (BSFRF) in 2013, 2014, 2015, and 2016 at standard survey stations in Bristol Bay, Alaska to characterize the selectivity of the NMFS bottom trawl survey gear for red king crab, *Paralithodes camtschaticus*, and Tanner crab, *Chionoecetes bairdi* (@fig-sbs-stations). Similar studies focused more specifically on Tanner crab were also conducted in 2017 and 2018 further west on the EBS shelf (@fig-sbs-stations). These "side-by-side" (SBS) studies were similar to earlier studies conducted to characterize NMFS survey selectivity for snow crab, *C. opilio*, using the same gear but conducted on the northwest EBS shelf [@SomertonEtAl2013]. The NMFS bottom trawl is a 83-112 otter trawl, which is deployed at standard survey stations located on a fixed grid with (generally) 20 *x* 20 nmi^2^ cells across the EBS shelf and towed for \~30 minutes on-bottom. The complete NMFS survey includes additional stations located at grid corners near the Pribilof Islands and St. Matthew Island to provide higher sampling densities in those areas for blue king crab [e.g., @LauthAndNichol2013]; some of these were included in the 2017 and 2018 studies. 
+
+For the SBS studies, a BSFRF-chartered vessel towed a nephrops bottom trawl [@ConanEtAl1994; @SomertonEtAl2013] starting at the same time, and at the same speed and direction, as the associated NMFS tow, but offset by \~0.5 nmi to create a "paired haul". Tow durations were limited to \~5 minutes on bottom because the BSFRF gear had better bottom-tending performance [@ConanEtAl1994] than the NMFS gear.
+
+```{r create_sbs_station_maps}
+##| cache: true
+##| cache-vars: p1, bmls
+#| echo: false
+  lst = wtsUtilities::getObj(file.path(s$dirs$SBS_Data,"rda_Step1_SBS_RawData.RData"));
+  dfr_stns  = lst$dfrSD_SBS |> dplyr::select(YEAR,GIS_STATION);
+  dfr_hauls = dplyr::bind_rows(lst$dfrHD_BSFRF_SBS |> 
+                                 dplyr::select(YEAR,MID_LATITUDE,MID_LONGITUDE) |> 
+                                 dplyr::mutate(type="BSFRF"),
+                               lst$dfrHD_NMFS_SBS |> 
+                                 dplyr::select(YEAR,MID_LATITUDE,MID_LONGITUDE) |> 
+                                 dplyr::mutate(type="NMFS"));
+  sf_hauls = wtsGIS::createSF_points(dfr_hauls,
+                                     xCol="MID_LONGITUDE",
+                                     yCol="MID_LATITUDE");
+
+  grid = tcsamSurveyData::gisGetSurveyGridLayers()$grid;
+  crs  = sf::st_crs(grid);
+  bbox = wtsGIS::getStandardBBox("EBS");
+  bbox["xmin"] = -173;
+  bbox["ymax"] =   60;
+  land = wtsGIS::getPackagedLayer("Alaska");
+  bthm = wtsGIS::getPackagedLayer("ShelfBathymetry") |> 
+           wtsGIS::transformCRS(crs) |> 
+           sf::st_crop(bbox);
+          
+  bmls = tcsamSurveyData::gg_GetBasemapLayers(sf_land=land,
+                                              sf_bathym=bthm,
+                                              final_crs=crs,
+                                              bbox=bbox);
+  sf_stns = dfr_stns |> 
+               dplyr::inner_join(grid,by=c("GIS_STATION"="STATION_ID")) |> 
+               sf::st_set_geometry("geometry");
+  p1 = ggplot(sf_stns) + 
+        bmls$land + 
+        geom_sf(fill="grey") + 
+        bmls$bathym + 
+        geom_sf(data=grid,colour="grey",fill=NA,size=0.5) + 
+        geom_sf(data=sf_hauls |> dplyr::filter(type=="BSFRF"),
+                mapping=aes(colour=type,shape=type,fill=type),
+                show.legend=FALSE) + 
+        facet_wrap(~YEAR,nrow=2) + 
+        bmls$map_scale + 
+        wtsPlots::getStdTheme() + bmls$theme;
+```
+
+Haul sampling protocols for both survey groups were based on the standard NMFS EBS survey protocols [@LauthAndNichol2013; @Zacher2019] For each tow, bottom depth and bottom temperature were based on sensor readings. Area swept was determined from net mensuration data recording net width and distance towed on-bottom. All crab were removed from the catch, sorted by species and sex, and a total catch weight was obtained for each species. Biological sampling for various crab species during survey generally consists of whole haul sampling, in which all crab are enumerated and various biological data such as sex, maturity state, shell condition, and carapace width (or length, depending on species) were recorded for each individual [e.g., @Zacher2019]. However, when the total catch was exceptionally large (approximately > 300 individuals), a random subsample of the catch was taken for enumeration and biological data collection. When subsampling occurred, the subsample could be taken at the level of the total catch, or at the level of a particular size and sex category. The weights for the entire catch component to be subsampled and the total weight of all individually-measured crab in the subsample were recorded and a "sampling factor", $\theta$, was calculated from the size composition of the measured crab to "expand" the measured crab abundance to the entire catch component:
+
+ $$ \theta = \frac {W_T} {W_S} $$ {#eq-SamplingFactor}
+
+where $W_T$ was the total weight of crab in the catch component and $W_S$ was the total weight of measured crab in the subsample. A sampling factor was associated with each measured crab (measured crab which were not part of a subsample were assigned a sampling factor of 1).
+
+Gear-specific catch abundance was standardized by sex ($x$), maturity state (for females, $m$), and 5-mm carapace width (CW) size bin ($z$) to catch-per-unit-effort (CPUE; numbers/sq nmi) for each haul by: 1) summing the sampling factors associated with each measured crab by sex/maturity/size category and 2) dividing by the area swept by the gear $g$ during the haul, $a_{g,h}$, as in: 
+
+$$ CPUE_{g,h,x,m,z} = \frac {\sum_{i_{g,h} \in \{x,m,z\}} \theta_{i_{g,h}}} {a_{g,h}} $$ {#eq-CPUE}
+
+where $h$ denotes the paired haul, $i_{g,h}$ indicates the $i$-th measured crab caught by gear $g$ in haul $h$, $\theta_i$ is the sampling factor associated with the $i$-th crab, and $i_{g,h} \in \{x,m,z\}$ indicates that the sum is only over measured crab falling within sex/maturity state/size bin $\{x,m,z\}$. The area swept $a_{g,h}$ was estimated using bottom contact sensor data to determine time/distance on bottom and net mensuration data to determine net width.
+
+Gear-specific, haul-level CPUE was subsequently expanded to total abundance size compositions by sex, maturity state, and 5-mm CW size bin within each year-specific study area using standard design-based calculations for area expansion [@Wakabayashi1985], where each study area was considered a single stratum and the NMFS EBS survey grid provided the associated area expansion factors (~400 sq. nmi) for the paired hauls. Specifically, 
+
+$$ N_{g,x,m,z} = \sum_{h} CPUE_{g,h,x,m,z} \cdot A_{h} $$ {#eq-TotAbundZCs}
+
+The estimated uncertainties associated with gear-specific, haul-level CPUEs were found to be large (i.e., CV's > 1, see @sec-Results-SBS-Surveys), with a substantial fraction of hauls (> 25%) catching no crab within a size bin. Consequently, we conducted a 2-stage bootstrapping analysis, by crab sex, to better characterize the uncertainties associated with the area-level size compositions obtained using Eq. @eq-TotAbundZCs and subsequent estimates of survey-level selectivity using Eq. @eq-AreaLevelSel. For each year, a bootstrap replicate consisted of first selecting $n_y$ paired hauls from that year at random with replacement, where $n_y$ was the original number of paired hauls conducted in year $y$. For each randomly-selected paired haul, $n_g$ crab of the relevant sex were then selected from the haul data for gear type $g$ at random with replacement, where $n_g$ was the original number of crab sampled by gear type $g$. A bootstrap replicate for the gear-specific total abundance size composition was subsequently calculated using Eq. @eq-TotAbundZCs, and a corresponding replicate for the survey-level selectivity was calculated using Eq. @eq-AreaLevelSel. This was repeated 1,000 times for each study year, resulting in 1,000 sex-specific bootstrap replicates of gear-specific size composition and survey-level selectivity.
+
+```{r}
+#| label: fig-sbs-stations
+#| fig-cap: 'Side-by-side haul (SBS) study stations for Tanner crab selectivity in the NMFS Eastern Bering Sea Shelf Survey. Grey lines: NMFS survey grid stations; filled squares: SBS stations with paired hauls; blue lines: 50 m, 100 m, 200 m and deeper bathymetric contours.'
+#| fig-alt: Maps showing the side-by-side haul (SBS) study stations for Tanner crab selectivity in 2013-2018.
+##| dependson: create_sbs_station_maps
+#| warning: false
+#| echo: false
+#| out-width: 100%
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+```
+
+## Survey-level selectivity {#sec-Methods-EmpSel}
+
+"Survey-level" selectivity for the NMFS gear was estimated for each SBS study year $y$ by sex $x$ using Eq. [-@eq-AreaLevelSel] from the corresponding area-expanded total abundance size compositions (Eq. [-@eq-TotAbundZCs]) as 
+
+$$ \tilde{S^*}^{NMFS}_{y,z|x} = \frac{N_{g=NMFS,y,x,z}} {N_{g=BSFRF,y,x,z}} $$ {#eq-EmpSel1}
+
+where the $\tilde{S*}^{NMFS}_{y,z|x}$ were regarded as noisy estimates of the true, smoothly-varying, SBS area-specific survey-level NMFS selectivity $\tilde{S}^{NMFS}_{y,z|x}$. Subsequent analysis considered each sex separately, and hence we drop the $x$ indices from subsequent notation, although this remains implied.
+
+The $\tilde{S*}^{NMFS}_{y,z}$ were fit using generalized additive models (GAMs; @Wood2016) to estimate the $\tilde{S}^{NMFS}_{y,z}$ as smoothly-varying functions of size. GAMs have the following form
+
+$$
+g(\mu_i = E[y_i]) = \eta_i = A_i + \mathbf{X}_i \boldsymbol{\gamma} + \sum_{j=1}^{J} f_j(\mathbf{x}_i), \; y_i \sim \text{EF}(\mu_i, \phi)
+$$
+
+where $\mu_i = E[y_i]$ is the expected value (mean) for the *i*th observation $y_i$, $g()$ is a "link" function, $\eta_i$ is the value of the link function for the *i*th observation, $A_i$ is a fixed offset, $\mathbf{X}_i$ is the $i$th row of a parametric model matrix, $\boldsymbol{\gamma}$ is a vector of parameters for the parametric terms, $f_j$ is a smooth function of the covariates $\mathbf{x}$ associated with the *i*th observation. $y_i \sim \text{EF}(\mu_i, \phi)$ denotes that the observations $y_i$ are randomly distributed in accordance with a member of the exponential family of distributions,  $EF$, with mean $\mu_i$ and scale parameter $\phi$. In general, the choice of link function $g$ is limited by the selected exponential family.
+
+The smooth functions $f_j$ are represented in the model via penalized spline basis expansions of the covariates, with each a weighted sum of basis functions $b_{jk}(...)$
+
+$$
+f_j(x_{ij}) = \sum_{k=1}^{K} \beta_{jk} b_{jk}(x_{ij})
+$$
+
+where $\beta_{jk}$ is the weight (coefficient) associated with the $k$th basis function $b_{jk}(...)$ evaluated at the covariate value $x_{ij}$ for the $j$th smooth function $f_j$. "Wiggliness" penalties $\sum_j \lambda_j \boldsymbol{\beta}^{\mathsf{T}} \mathbf{S}_j \boldsymbol{\beta}$ control the degree of smoothing applied to the $f_j$ through the smoothing parameters $\lambda_j$.
+
+We wanted to estimate a smoothly-varying function of size $\tilde{S}^{NMFS}_{z}$ common to all years, and to test whether there was substantial variation in the $\tilde{S}^{NMFS}_{y,z}$ among years. If the latter were true, this would be strong evidence that NMFS haul-level selectivity varied spatially and/or temporally, possibly due to environmental covariates. If the latter were false, this would suggest that the estimated function could represent NMFS selectivity at the scale of the entire EBS shelf survey. To this end, we fit three GAMs of the form 
+
+$$\eta_i = M_{y,z} = \left\{ \begin{array}{lcl} 
+                       a) ~ \alpha + s(z)\\ 
+                       b) ~ \alpha + s(z) + t_y(z)\\ 
+                       c) ~ \alpha + s(z) + \acute{t}(z,y)
+                    \end{array} \right. $$ {#eq-EmpSelModels} 
+
+to the $y_i = \tilde{S*}^{NMFS}_{y,z}$, where $i$ maps to appropriately to $y,z$. $M_{y,z}$ is the estimated link-scale mean, $\alpha$ is an estimated intercept, $s(z)$ represents a smooth function of $z$, and $t_y(z)$ and $\acute{t}(z,y)$ represent sets of smooth functions which are constrained to sum to 0 across the $y$'s for each $z$. We selected the Tweedie family of exponential distributions [@Tweedie1984] to represent the statistical error structure of the observations, i.e.,
+
+$$ \tilde{S^*}^T_{y,z} \sim Tw(\mu_{y,z},p_{tw}) $$ {#eq-EmpSelExpFam}
+
+where $\mu_{y,z}=g^{-1}[M_{y,z}]$, the variance of $\tilde{S^*}^T_{y,z}$ is given by $\sigma^2 \mu_{y,z}^{p_{tw}}$, $\sigma^2$ is the positive dispersion parameter, and $p_{tw}$ is the Tweedie power parameter. Tweedie distributions are a family of probability distributions which include, depending on the value of $p_{tw}$, the normal, gamma and inverse Gaussian distributions, the Poisson distribution, and the class of compound Poisson–gamma distributions which have positive mass at zero, but are otherwise continuous. 
+
+We implemented the three models (eq. [-@eq-EmpSelModels]) in R using the *mgcv* package [@ref-R, @Wood2011, @Wood2017] and `tw`, the *mgcv* version of the Tweedie family of distributions with $p_{tw}$ estimable but limited to values between 1 and 2 (the limits representing the Poisson and gamma distributions, respectively). The natural logarithm was taken as the link function $g$, the smooth function $s(z)$ was implemented as thin-plate splines using *mgcv*'s tensor interaction function `ti(z,bs="tp")`, the $t_y(z)$'s were implemented using $y$ as a factor smooth variable (`ti(z,by=y,bs="sz")`), and $\acute{t}(z,y)$ was implemented as a random factor smooth (`ti(z,y,bs="fs")`), with $y$ represented as a factor (rather than a continuous covariate) in the latter two cases. The three models were fit for each sex/maturity category using residual maximum likelihood ("REML") to estimate the smooths. Individual observations (i.e., the $\tilde{S^*}^T_{y,z}$) were weighted by the total number of crab sampled at size $z$ in year $y$ by the BSFRF gear.
+
+## Sediment characteristics {#sec-Methods-SedChar}
+
+```{r SedMeths_GetRasters}
+  #--get interpolation rasters
+  top<-file.path(s$dirs$SedAnls,"02_SedimentAnalyses","Rasters");
+  fns<-c("CoKr_EditedGrainSizeRaster.tif",
+         "CoKr_EditedSortingRaster.tif");
+  rasters<-list();
+  for (fn in fns){
+    fnp<-stringr::str_remove(fn,(".tif"))
+    rasters[[fnp]]<-stars::read_stars(file.path(top,fn));
+    if (params$testing) plot(rasters[[fnp]]);
+  }
+  crs = sf::st_crs(rasters[[1]]);
+```
+
+@SomertonEtAl2013 found that sediment grain size was an important spatial covariate, along with bottom depth, in characterizing haul-level selectivity for snow crab in the NMFS 83-112 trawl gear. Taking sediment samples is not part of the standard NMFS EBS shelf survey protocols, so sediment samples coincident with NMFS survey haul locations are generally unavailable. Consequently, we followed @SomertonEtAl2013 and used (an updated version of) the EBSSED-2 database [@EBSSED2] as the basis for estimating sediment characteristics at paired haul locations. Values for sediment mean grain size (in -log($\phi$) units) and sorting coefficient (reflecting the variance in sediment grain size) at the NMFS survey haul locations were interpolated from rasters (Figures [-@fig-SedMeths-PhiMap] and [-@fig-SedMeths-SortingMap]) created using co-kriging geostatistics function in ArcGIS [@REF] from sediment core data collected across the EBS shelf and slope contained in the EBSSED-2 database. 
+
+```{r}
+#| label: fig-SedMeths-PhiMap
+#| fig-cap: "Distribution of mean grain size (phi units), based on co-kriging point values from the EBSSED-2 database using geostatistics functions in ArcGIS."
+#| dependson: create_sbs_station_maps
+#| cache: true
+  #--plot map of phi
+  prj  = stars:::st_transform_proj.stars(rasters[[1]],crs=bmls$map_scale$crs);
+  p = ggplot() + bmls$land + bmls$bathym + bmls$theme + 
+        stars::geom_stars(data=prj) + 
+        bmls$map_scale + 
+        scale_fill_viridis_c(name="mean\ngrain\nsize\n(phi units)",option="magma")
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p));
+  # if (!isPDF) print(p) else {
+  #   lbl = getLabel();
+  #   cap = wtsQMD::getFigCaption();
+  #   pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+  #   lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+  #   ggsave(pth,plot=p,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+  #   rm(lbl,cap,pth);
+  # }
+```
+
+```{r}
+#| label: fig-SedMeths-SortingMap
+#| fig-cap: "Distribution of grain size sorting coefficient, based on co-kriging point values from the EBSSED-2 database using geostatistics functions in ArcGIS."
+#| dependson: create_sbs_station_maps
+#| cache: true
+  #--plot map of phi
+  prj  = stars:::st_transform_proj.stars(rasters[[2]],crs=bmls$map_scale$crs);
+  p = ggplot() + bmls$land + bmls$bathym + bmls$theme + 
+        stars::geom_stars(data=prj) + 
+        bmls$map_scale + 
+        scale_fill_viridis_c(name="sorting\ncoefficient",option="magma")
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p))
+  rm(prj);
+```
+
+
+## Haul-level selectivity {#sec-Methods-HaulSel}
+
+
+<!-- references -->
+```{r refs_Methods,eval=!knitr::opts_knit$get("child")&!isPDF,results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_Methods
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_Methods
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

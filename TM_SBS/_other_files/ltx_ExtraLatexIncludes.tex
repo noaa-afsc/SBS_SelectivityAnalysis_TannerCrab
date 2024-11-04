@@ -1,0 +1,47 @@
+%--the following are required by kableExtra
+%----use kableExtra::kableExtra_latex_packages()
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{wrapfig}
+\usepackage{colortbl}
+\usepackage{tabu}
+\usepackage{threeparttable}
+\usepackage{threeparttablex}
+\usepackage[normalem]{ulem}
+\usepackage[utf8]{inputenc}
+\usepackage{makecell}
+\usepackage{xcolor}
+\usepackage{pdflscape}
+\usepackage{placeins}   %--not req'd by kableExtra
+\usepackage{graphicx}   %--not req'd by kableExtra
+\usepackage{float}   %<-can't use with floatrow package (was used below)
+%--now trying the floatrow package (need to comment out approach above based on float package)
+%--\usepackage{floatrow}  %--resets a bunch of stuff
+\usepackage{setspace}   %--not req'd by kableExtra
+
+%--turn on page numbering
+\pagenumbering{arabic}
+%--turn off page numbering
+%--\usepackage{nopageno}
+
+%--define caption characteristics for all float types (must override for individual float types)
+\usepackage[tableposition=t,figureposition=b]{caption}
+\setlength{\LTcapwidth}{1.0\linewidth}       %--for use with longtable
+%--set up table floats
+\captionsetup[table]{position        = above,
+                     justification   = raggedright, 
+                     labelsep        = period,
+                     singlelinecheck = false}
+% \floatsetup[table]{capposition=top,
+%                    captionskip=0pt}
+%--set up figure floats
+\captionsetup[figure]{position       = below,
+                     justification   = raggedright, 
+                     labelsep        = period,
+                     singlelinecheck = false}
+% \floatsetup[figure]{capposition=bottom,
+%                     captionskip=0pt}
+
+

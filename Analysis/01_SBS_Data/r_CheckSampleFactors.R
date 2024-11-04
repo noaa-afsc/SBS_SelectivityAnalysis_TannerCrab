@@ -70,15 +70,15 @@ dfr = dfrHaulData_NMFS |> dplyr::select(year=AKFIN_SURVEY_YEAR,hj=HAULJOIN,
 dfr1 = dfr |> dplyr::distinct(sf)
 ggplot(dfr1,aes(x=sf)) + geom_histogram()
 #----extract hauls with sampling factors > 1
-dfr1 = dfr |> distinct(year,hj,x,sf) |> 
+dfr1 = dfr |> dplyr::distinct(year,hj,x,sf) |> 
               dplyr::count(year,hj,x,name="n") |> 
               dplyr::filter(n>1);
 dfr2 = dfr |> dplyr::inner_join(dfr1,by=c("year","hj","x")) |>
               dplyr::mutate(sfr=1/sf,
                             cnt=1) |> 
               dplyr::group_by(year,hj,x,sf) |> 
-              dplyr::summarize(tsf=sum(sf,na.rm=TRUE),
-                               tct=sum(cnt,na.rm=TRUE));
+              dplyr::summarize(tsf=sum(sf,na.rm=TRUE),  #--expanded total number
+                               tct=sum(cnt,na.rm=TRUE));#--total number measured
 
 #----NMFS
 dfrID_NMFS<-selectIndivs.TrawlSurvey(dfrHD_NMFS,

@@ -1,0 +1,920 @@
+---
+title: "SBS Studies: Survey-level Selectivity Results"
+author:
+- name: William T. Stockhausen
+  affiliations:
+    - id: afsc-refm
+      name: "Alaska Fisheries Science Center"
+      department: "Resource Ecology and Fisheries Management"
+      address: 
+        - "7600 Sand Point Way N.E."
+        - "Seattle, Washington 98115-6349"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 8
+    fig-asp: 0.4
+    fig-dpi: 100
+    embed-resources: true
+    include-in-header: 
+      - '`r system.file("files/in-line_math_mode.html",package="wtsQMD")`'
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    fig-width: 6.5
+    fig-asp: 0.4
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+          \usepackage{fontspec}
+          \usepackage{multicol}
+          \usepackage{hhline}
+          \newlength\Oldarrayrulewidth
+          \newlength\Oldtabcolsep
+      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
+echo: false
+message: false
+warning: false
+results: 'hide'
+keep-md: false
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  calcESs: false         #--flag to calculate annual ESs (or read in previous results)
+  doBS: false            #--flag to do boostrapping analysis (or read in previous results)
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: SurvSel_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_SurvSel
+#| results: 'asis'
+  require(ggplot2);
+  require(gratia);
+  require(kableExtra);
+  require(mgcv);
+  require(tables);
+  require(tcsamSurveyData);
+  flextable::set_flextable_defaults(font.size=11);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) cat("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/02_Empirical_Selectivity");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+  ##--
+```
+
+## Survey-level selectivity {#sec-Results-SurvSel}
+
+```{r SurvSel-GetESs}
+  ofn = file.path(dirThs,"rda_Step1_EmpiricalSelectivityFromData.RData");
+  lst = wtsUtilities::getObj(ofn);
+  dfrESs = lst$dfrESs |> dplyr::mutate(y=factor(as.character(y)));
+  rm(lst);
+```
+
+```{r SurvSel-DefModelFcns}
+#----function to predict values based on a model
+  prdMod<-function(mdl,trms,lst,type="response",keep=NULL,p=0.05){
+    dfr = wtsMGCV::createGridTbl(lst);
+    if (any(trms=="all")){
+      #--add intercept and all smooth terms
+      trmsp = "(Intercept)";
+      trms = wtsMGCV::getSmoothTerms(mdl);
+      for (trm in trms) trmsp = c(trmsp,trm);
+      trms = trmsp;
+    }
+    prd = dplyr::bind_cols(
+              dfr,
+              tibble::as_tibble(
+                mgcv::predict.gam(mdl,dfr,type=type,terms=trms,se.fit=TRUE),
+              ) |> 
+              dplyr::mutate(type="fit",
+                            lci=qnorm(p,fit,se.fit,lower.tail=TRUE),
+                            uci=qnorm(p,fit,se.fit,lower.tail=FALSE),
+                            terms=paste(trms,collapse=" + "))
+          ) |> 
+            dplyr::rename(emp_sel=fit);
+    if (!is.null(keep)){
+      prd = prd |> 
+              dplyr::distinct(pick(tidyselect::any_of(keep),emp_sel,se.fit,lci,uci,terms));
+      drop = names(lst)[!(names(lst) %in% keep)];
+      for (drp in drop) prd[[drp]] = NA;
+    }
+    return(prd);
+  }
+  plotMod<-function(tmp,ylims=c(0,1.5)){
+    if (all(is.na(tmp$y))) tmp$y = "all";
+    p = ggplot(tmp,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=y,fill=y));
+    if ("n" %in% names(tmp)){
+      p = p + geom_point(aes(size=n)) + scale_size_area() + 
+              geom_line();
+    }
+    p = p + 
+           geom_ribbon(alpha=0.3) + 
+           geom_line() + 
+           geom_hline(yintercept=0.5,linetype=3) + 
+           scale_y_continuous(limits=ylims,oob=scales::squish) + 
+           labs(x="size (mm CW)",y="empirical\nselectivity",
+                colour="study\nyear",fill="study\nyear",size="crab\nsampled") + 
+           theme(legend.position="inside",
+                 legend.position.inside=c(0.01,0.99),
+                 legend.justification.inside=c(0,1),
+                 legend.byrow=TRUE,
+                 legend.box="horizontal");
+    return(p);
+  }
+
+#----function to do model diagnostics
+doDiagnostics<-function(mod){
+  summary(mod);
+  plot(mod,page=1);
+  gam.check(mod);
+}
+
+#----functions to create a "glance" comparison table for multiple models
+glance_gam <- function(x, ...) {
+  s <- summary(x)
+  
+  gl = broom:::as_glance_tibble(
+        family=x$family$family,
+        df = sum(x$edf),
+        logLik = as.numeric(stats::logLik(x)),
+        AIC = stats::AIC(x),
+        BIC = stats::BIC(x),
+        deviance = stats::deviance(x),
+        df.residual = stats::df.residual(x),
+        `N(obs)` = stats::nobs(x),
+        `adj. R^2` = s$r.sq,
+        `N(params)` = s$np,
+        na_types = "cirrrriiri"
+      )
+  return(gl);
+}
+getGlance<-function(mdls){
+  lst = list();
+  for (mdl in names(mdls)){
+    lst[[mdl]] = glance_gam(mdls[[mdl]]) |> dplyr::mutate(model=mdl);
+  }
+  lvls = c("family","AIC","BIC","deviance","adj. R^2","df","N(params)","N(obs)");
+  dfrGl = dplyr::bind_rows(lst) |> 
+            dplyr::select(tidyselect::all_of(c("model",lvls)));
+            # tidyr::pivot_longer(cols=1:(ncol(lst[[1]])-1),names_to="quantity",values_to="value") |> 
+            # dplyr::filter(quantity %in% lvls) |>
+            # dplyr::mutate(quantity=factor(quantity,levels=lvls)) |> 
+            # dplyr::arrange(quantity) |>
+            # tidyr::pivot_wider(names_from="model");
+  return(dfrGl);
+}
+#--function to get table comparing summary statistics among the models
+getSmryFlxTbl<-function(mdls){
+  dfrGl = getGlance(mdls);
+  lvls = names(dfrGl)[3:length(names(dfrGl))];#--names except "model" and "family"
+  lvls1 = lvls[1:5];#--lvls except N(params) and N(obs)
+  lvls2 = lvls[6:7];#--N(params) and N(obs)
+  dfrGl1 = dfrGl |> dplyr::select(tidyselect::all_of(c("model",lvls1))) |> 
+              tidyr::pivot_longer(cols=tidyselect::all_of(lvls1),
+                                  names_to="quantity",values_to="value") |> 
+              dplyr::mutate(quantity=factor(quantity,levels=lvls1)) |>
+              dplyr::arrange(quantity) |> 
+              tidyr::pivot_wider(names_from="model");
+  dfrGl2 = dfrGl |> dplyr::select(tidyselect::all_of(c("model",lvls2))) |> 
+              tidyr::pivot_longer(cols=tidyselect::all_of(lvls2),
+                                  names_to="quantity",values_to="value") |> 
+              dplyr::mutate(quantity=factor(quantity,levels=lvls2)) |>
+              dplyr::arrange(quantity) |> 
+              tidyr::pivot_wider(names_from="model");
+  dfrFs = dfrGl |> dplyr::select(model,family) |> 
+            dplyr::rowwise() |> 
+            dplyr::mutate(family= paste(
+                                    stringr::str_split_1(family,"\\(")[1],
+                                    stringr::str_split_1(stringr::str_split_1(family,"\\(")[2],"\\)")[1]
+                                    )
+                          );
+  ft1 = flextable::flextable(dfrGl1) |> 
+          flextable::colformat_double(digits=2);
+  ft2 = flextable::flextable(dfrGl2);
+  ft1 = ft1 |> flextable::add_body_row(top=TRUE,values=c("family",dfrFs$family[]));
+  for (r in 1:nrow(dfrGl2))
+    ft1 = ft1 |> flextable::add_body_row(top=FALSE,values=dfrGl2[r,])
+  ft1 = ft1 |> 
+          flextable::theme_booktabs() |> 
+          flextable::align(j=2:4,align="center",part="all") |> 
+          flextable::vline(j=1,part="all")
+  return(ft1);
+}
+```
+
+### Males
+
+The "observed" annual empirical survey catchability curves for males are substantially variable across the size range collected in the SBS studies ([@fig-SurvSel-AnnualM]). Taken as a whole, they exhibit an increasing, slightly concave trend from 25 mm CW to ~125 mm CW, with a suggestion of a subsequent decline at larger sizes, although sample sizes are small above 150 mm CW. 
+
+```{r}
+#| label: fig-SurvSel-AnnualM
+#| fig-cap: "Comparison of annual empirical estimates of NMFS survey selectivity for male Tanner crab. An overall (unweighted) smoothed trend and simple uncertainty interval are indicated by the thick blue line and grey shading."
+#| fig-asp: 0.6
+  dfrESsp = dfrESs |> dplyr::filter(x=="male");
+  tmp = dfrESsp;
+  tmp$totN = tmp$n_BSFRF+tmp$n_NMFS;
+  tmp$y = factor(tmp$y)
+  p1 = ggplot(data=tmp,mapping=aes(x=z,y=emp_sel,colour=y,size=totN)) +
+         geom_point() + scale_size_area() + 
+         geom_line(mapping=aes(x=z,y=emp_sel,colour=y),inherit.aes=FALSE) +
+         geom_smooth(mapping=aes(x=z,y=emp_sel),inherit.aes = FALSE) + 
+         facet_grid(rows = .~x,scales = "free_x") +
+         labs(x="size (mm CW)",y="empirical\ncatchability",
+              colour="study\nyear",size="crab\nsampled") + 
+         wtsPlots::getStdTheme() + 
+         theme(legend.position.inside=c(0.01,0.99),
+               legend.justification=c(0,1),
+               panel.grid=element_line(colour="grey"),
+               panel.grid.minor.y=element_blank());
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  rm(tmp,p1);
+```
+
+Both the intercept and the year-invariant smooth term $s(z)$ were highly significant ($p$ values < 0.0001) for all three models (Tables [-@tbl-EmpSel-Mdl1M]-[-@tbl-EmpSel-Mdl3M]). Of the six year-specific "factor" smooths ($ti(z,y)$) in Model 2, three were significant ($p$ values < 0.001; for 2013, 2014, and 2018) while the remainder were not significant ($p$ > 0.4; 2015, 2016, 2017; [@tbl-EmpSel-Mdl2M]). The random effects term in Model 3, $s_{RE}(z,y)$, was also found to be highly significant ($p$ < 0.0001; [@tbl-EmpSel-Mdl3M]). The estimated Tweedie power parameter ranged from 1.436 for Model 1 to 1.537 for Model 2, with an intermediate value (1.467) for Model 3 ([@tbl-EmpSel-MdlsSmryM]). Of the three, Model 3 exhibited the lowest AIC and BIC scores and the highest adjusted $R^2$ ([@tbl-EmpSel-MdlsSmryM]). Diagnostic plots for residuals (Figures [-@fig-EmpSel-Mdl1M1]-[-@fig-EmpSel-Mdl3M1]) exhibited departures from expected cumulative distributions at the upper ends of those distributions, as well as significant deviations from the KS, dispersion, and outlier tests provided by the DHARMa R package [@DHARMa].
+
+```{r EmpSel-CalcModelsEmpSelFcnsM}
+  mdl1m = mgcv::gam(emp_sel ~ s(z,bs="tp",k=10),
+                     family=mgcv::tw,data=dfrESsp,method="REML",
+                     weights=n_BSFRF/mean(n_BSFRF));
+  mdl2m = mgcv::gam(emp_sel ~ s(z,bs="tp",k=10) + ti(z,by=y,bs="sz"),
+                     family=mgcv::tw,data=dfrESsp,method="REML",select=TRUE,
+                     weights=n_BSFRF/mean(n_BSFRF));
+  #--add "non-study" level to reflect uncertainty associated with unknown random effects
+  dfrESsp1 = dfrESsp |> dplyr::mutate(y=factor(as.character(y),levels=c("non-study",levels(y))));
+  mdl3m = mgcv::gam(emp_sel ~ s(z,bs="tp",k=10) + s(z,y,bs="fs"),
+                     family=mgcv::tw,data=dfrESsp1,method="REML",select=TRUE,
+                     weights=n_BSFRF/mean(n_BSFRF),
+                    drop.unused.levels=FALSE);
+  #--define prediction grids
+  grids = list(z=(dfrESsp |> dplyr::distinct(z))[[1]],
+               y=(dfrESsp |> dplyr::distinct(y))[[1]]);
+  grids1 = list(z=(dfrESsp |> dplyr::distinct(z))[[1]],
+                y=factor("non-study"));
+  #--predict time-invariant response
+  prd1mt = prdMod(mdl1m,trms=c("(Intercept)","s(z)"),
+                 lst=grids,type="response",keep="z");
+  prd2mt = prdMod(mdl2m,trms=c("(Intercept)","s(z)"),
+                  lst=grids,type="response",keep="z");
+  prd3mt = prdMod(mdl3m,trms=c("(Intercept)","s(z)"),
+                 lst=grids1,type="response",keep="z");
+  maxSel = c("Model 1"=max(prd1mt$emp_sel),
+             "Model 2"=max(prd2mt$emp_sel),
+             "Model 3"=max(prd3mt$emp_sel));
+  maxSelZs = c("Model 1"=(dplyr::filter(prd1mt,emp_sel==maxSel["Model 1"])[1,])$z,
+               "Model 2"=(dplyr::filter(prd2mt,emp_sel==maxSel["Model 2"])[1,])$z,
+               "Model 3"=(dplyr::filter(prd3mt,emp_sel==maxSel["Model 3"])[1,])$z);
+```
+
+```{r tbl_EmpSel-Mdl1M,eval=TRUE}
+#| results: asis
+  flx = flextable::as_flextable(mdl1m);
+  cap = paste0("Summary results for Model 1 for males.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(flx,
+                                             lbl="tbl-EmpSel-Mdl1M",
+                                             cap=cap,
+                                             ori="P"));
+  rm(flx,cap);
+```
+
+```{r tbl_EmpSel-Mdl2M,eval=TRUE}
+#| results: asis
+  flx = flextable::as_flextable(mdl2m);
+  cap = paste0("Summary results for Model 2 for males.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(flx,
+                                             lbl="tbl-EmpSel-Mdl2M",
+                                             cap=cap,
+                                             ori="P"));
+  rm(flx,cap);
+```
+
+```{r tbl_EmpSel-Mdl3M,eval=TRUE}
+#| results: asis
+  flx = flextable::as_flextable(mdl3m);
+  cap = paste0("Summary results for Model 3 for males.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(flx,
+                                             lbl="tbl-EmpSel-Mdl3M",
+                                             cap=cap,
+                                             ori="P"));
+  rm(flx,cap);
+```
+
+```{r tbl_EmpSel-MdlsSmryM,eval=TRUE}
+#| results: asis
+  mdls = list(`Model 1`=mdl1m,`Model 2`=mdl2m,`Model 3`=mdl3m);
+  ft = getSmryFlxTbl(mdls);
+  cap = paste0("Comparison of model summary results for males.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(ft,
+                                             lbl="tbl-EmpSel-MdlsSmryM",
+                                             cap=cap,
+                                             ori="P"));
+  rm(mdls,ft,cap);
+```
+
+```{r fig_EmpSel-Mdl1M1} 
+#| results: asis
+#| fig-cap: "DHARMa residuals from Model 1 for males. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl1m = DHARMa::simulateResiduals(mdl1m);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl1m)),ori="L"));
+  rm(resSimMdl1m);
+```
+
+```{r fig_EmpSel-Mdl2M1}
+#| results: asis
+#| fig-cap: "DHARMa residuals from Model 2 for males. Left: quantile-quantile plot for observed and expected residuals under null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl2m = DHARMa::simulateResiduals(mdl2m);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl2m)),ori="L"));
+  rm(resSimMdl2m);
+```
+
+```{r fig_EmpSel-Mdl3M1}
+#| results: asis
+#| fig-cap: "DHARMa residuals from Model 3 for males. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl3m = DHARMa::simulateResiduals(mdl3m);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl3m)),ori="L"));
+  rm(resSimMdl3m);
+```
+
+The time-invariant estimates of catchability, $S(z)$ ($= exp(\alpha+s(z))$, where $\alpha$ is the estimated link-scale intercept and $s(z)$ is the estimated link-scale smooth function of size, $z$), were quite similar across the three models, exhibiting patterns similar to that noted for the "observed" values ([@fig-EmpSel-AllMdlsSelM]). Estimates for fully-selected catchability, or $q$ (the maximum of $S(z)$), varied over a narrow range, from 0.575 (Model 1) to 0.603 (Model 2), while the 5-mm size bin at which full selection occurred varied from 135 mm CW (Model 3) to 145 mm CW (Model 2) ([@tbl-EmpSel-AllMdlsQM]). While the estimated curves from all three models exhibited a decline in catchability after reaching their peaks, the uncertainty in the estimated curves above 150 mm CW was considerable. Below 150 mm CW, the uncertainty associated with the estimated curve from Model 3 was larger (on the order of 2*x*) than that of the other two models at any size because it reflects the estimated *population-level* (i.e., for any randomly-selected year) variability in catchability, not the variability associated with the specific years of the SBS studies. 
+
+```{r fig_EmpSel-AllMdlsSelM}
+#| results: asis
+#| fig-cap: "Comparison of the estimated time-invariant estimated selectivity, $S(z)$, for males from the three models."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfr = dplyr::bind_rows(
+          prd1mt |> dplyr::mutate(model="1"),
+          prd2mt |> dplyr::mutate(model="2"),
+          prd3mt |> dplyr::mutate(model="3")
+  )
+  p1 = ggplot(dfr,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=model,fill=model)) +
+        geom_line() + geom_ribbon(alpha=0.3) +
+        labs(x="size (mm CW)",y="estimated time-invariant selectivity");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="L"));
+  rm(dfr,p1);
+```
+
+```{r tbl_EmpSel-AllMdlsQM,eval=TRUE}
+#| results: asis
+  dfr = tibble::tibble(model=names(maxSel),q=unname(maxSel),`size (mm CW)`=unname(maxSelZs));
+  ft = flextable::flextable(dfr) |>
+         flextable::vline(j=1) |>
+         flextable::colformat_double(j=2,digits=3) |>
+         flextable::width(j=3,width=1);
+  cap = paste0('Results for fully-selected catchability ("q") and size at full selection for males.');
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(ft,
+                                             lbl="tbl-EmpSel-AllMdlsQM",
+                                             cap=cap,
+                                             ori="P"));
+  rm(dfr,ft,cap);
+```
+
+```{r fig_EmpSel-AllMdlsSelPRsM}
+#| results: asis
+#| fig-cap: 'Partial residuals to the smooth term `s(z)` (solid line; shading: 90% confidence interval) by size and year (the latter as a factor) on the link (natural logarithm) scale. The area of each residual is scaled to the number of males caught at size by the BSFRF gear. There is no term for "non-study" years.'
+#| fig-asp: 1.2
+  dfr1 = gratia:::smooth_estimates(mdl1m,select="s(z)",partial_match=TRUE,
+                                  unconditional=TRUE,overall_uncertainty=TRUE) |>
+           gratia::add_confint() |> dplyr::mutate(model="Model 1");
+  dfr2 = gratia:::smooth_estimates(mdl2m,select="s(z)",
+                                    unconditional=TRUE,overall_uncertainty=TRUE) |>
+            gratia::add_confint() |> dplyr::mutate(model="Model 2");
+  dfr3 = gratia:::smooth_estimates(mdl3m,select="s(z)",
+                                    unconditional=TRUE,overall_uncertainty=TRUE) |>
+            gratia::add_confint() |> dplyr::mutate(model="Model 3");
+  dfr = dplyr::bind_rows(dfr1,dfr2,dfr3);
+  dfrPRs1 = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl1m,select=paste0("s(z)")) |>
+              dplyr::rename(residuals=any_of(paste0("s(z)")))) |>
+              dplyr::mutate(model="Model 1");
+  dfrPRs2 = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl2m,select="s(z)") |>
+              dplyr::rename(residuals="s(z)")) |>
+              dplyr::mutate(model="Model 2");
+  dfrPRs3 = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl3m,select="s(z)") |>
+              dplyr::rename(residuals="s(z)")) |>
+              dplyr::mutate(model="Model 3");
+  dfrPRs = dplyr::bind_rows(dfrPRs1,dfrPRs2,dfrPRs3);
+  p1 = ggplot(dfr,aes(x=z,y=.estimate,ymin=.lower_ci,ymax=.upper_ci)) +
+        geom_line() + geom_ribbon(colour=NA,alpha=0.3) +
+        geom_point(data=dfrPRs,mapping=aes(x=z,y=residuals,colour=y,size=n_BSFRF),
+                   inherit.aes=FALSE) +
+        scale_size_area(name="n (BSFRF)") +
+        facet_wrap(~model,ncol=1) +
+        labs(x="size (mm CW)",y="link scale",colour="study\nyear",fill="study\nyear");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  rm(dfr1,dfr2,dfr3,dfr,dfrPRs1,dfrPRs2,dfrPRs3,dfrPRs,p1)
+```
+
+```{r fig_EmpSel-Mdl2FullSelM} 
+#| results: asis
+#| fig-cap: "Estimated survey selectivity for males from Model 2. Upper plot: annual estimates by study year. Lower plot: factor smooth interaction terms `ti(z,y,bs='sz')` (solid line; shading: 90% confidence interval) by size and year (the latter as a factor) on the link (natural logarithm) scale. The area of each residual is scaled to the number of males caught at size by the BSFRF gear."
+#| fig-asp: 1.0
+  prd2m = prdMod(mdl2m,trms=c("all"),lst=grids,type="response");
+  p1 = plotMod(prd2m,c(0,1.5));
+  dfr = gratia:::smooth_estimates(mdl2m,select="ti(z):y",partial_match=TRUE,
+                                  unconditional=TRUE,overall_uncertainty=TRUE) |>
+          gratia::add_confint() |>
+          dplyr::mutate(y=factor(as.character(y),
+                                 levels=c(as.character(2013:2018),"non-study")));
+  lstPRs = list();
+  for (y_ in levels(dfrESs$y))
+    lstPRs[[y_]] = dplyr::bind_cols(
+                     dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                     gratia::partial_residuals(mdl2m,select=paste0("ti(z):y",y_)) |>
+                       dplyr::rename(residuals=any_of(paste0("ti(z):y",y_)))
+                   ) |> dplyr::filter(y==y_);
+  dfrPRs = dplyr::bind_rows(lstPRs); rm(lstPRs);
+  p2 = ggplot(dfr,aes(x=z,y=.estimate,ymin=.lower_ci,ymax=.upper_ci)) +
+        geom_line() + geom_ribbon(colour=NA,alpha=0.3) +
+        geom_point(data=dfrPRs,mapping=aes(x=z,y=residuals,size=n_BSFRF),
+                   inherit.aes=FALSE) +
+        scale_size_area(name="n (BSFRF)") + facet_wrap(~y,drop=FALSE) +
+        guides(colour="none",fill="none") +
+        labs(x="size (mm CW)",y="link scale",colour="study\nyear",fill="study\nyear") +
+        theme(legend.justification=c(0.0,0.0),
+              legend.position="inside",
+              legend.position.inside=c(0.4,0.2),
+              legend.direction="horizontal");
+  pg = cowplot::plot_grid(p1,p2,ncol=1,rel_heights=c(1,2));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg));
+  rm(prd2m,p1,dfr,dfrPRs,p2,pg);
+```
+
+```{r fig_EmpSel-Mdl3FullM}
+#| results: asis
+#| fig-cap: "Estimated survey selectivity for males from Model 3. Upper plot: annual estimates by study year. Lower plot: random factor smooth interaction terms `s(z,y,bs='fs')` (solid line; shading: 90% confidence interval) by size and year (the latter as a factor) on the link (natural logarithm) scale. The area of each residual is scaled to the number of males caught at size by the BSFRF gear. 'non-study' denotes the link-scale term for any non-study year, reflecting the overall uncertainty associated with unobserved random effects."
+#| fig-asp: 1.0
+  prd3m = prdMod(mdl3m,trms=c("all"),lst=grids,type="response");
+  p1 = plotMod(prd3m,c(0,1.5)) + theme(axis.title.x=element_blank());
+  dfr = gratia:::smooth_estimates(mdl3m,select="s(z,y)",unconditional=TRUE,overall_uncertainty=TRUE) |>
+          gratia::add_confint() |>
+          dplyr::mutate(y=factor(as.character(y),
+                                 levels=c(as.character(2013:2018),"non-study")));
+  dfrPRs = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl3m,select="s(z,y)") |>
+                              dplyr::rename(residuals="s(z,y)"));
+  p2 = ggplot(dfr,aes(x=z,y=.estimate,ymin=.lower_ci,ymax=.upper_ci)) +
+        geom_line() + geom_ribbon(colour=NA,alpha=0.3) +
+        geom_point(data=dfrPRs,mapping=aes(x=z,y=residuals,size=n_BSFRF),inherit.aes=FALSE) +
+        scale_size_area(name="n (BSFRF)") + facet_wrap(~y) +
+        guides(colour="none",fill="none") +
+        labs(x="size (mm CW)",y="link-scale",colour="study\nyear",fill="study\nyear") +
+        theme(legend.justification=c(0.0,0.0),
+              legend.position="inside",
+              legend.position.inside=c(0.4,0.2),
+              legend.direction="horizontal");
+  pg = cowplot::plot_grid(p1,p2,ncol=1,rel_heights=c(1,2));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg));
+  rm(prd3m,p1,dfr,dfrPRs,p2,pg);
+```
+
+```{r EmpSel_CleanupM}
+  rm(dfrESsp,dfrESsp1);#--keep model results for males
+```
+
+### Females
+
+As with male Tanner crab, the "observed" annual empirical survey catchability curves for females are substantially variable across the size range collected in the SBS studies ([@fig-SurvSel-AnnualF]). Based on a simple unweighted smooth fit, they exhibit an initially-increasing trend from 25 mm CW to 70 mm CW, with catchability at larger sizes essentially constant at ~0.4. 
+
+```{r}
+#| label: fig-SurvSel-AnnualF
+#| fig-cap: "Comparison of annual empirical estimates of NMFS survey selectivity for female Tanner crab. An unweighted smoothed trend and simple uncertainty interval are indicated by the thick blue line and grey shading."
+#| fig-asp: 0.6
+  dfrESsp = dfrESs |> dplyr::filter(x=="female",z<140);
+  tmp = dfrESsp;
+  tmp$totN = tmp$n_BSFRF+tmp$n_NMFS;
+  tmp$y = factor(tmp$y)
+  p1 = ggplot(data=tmp,mapping=aes(x=z,y=emp_sel,colour=y,size=totN)) +
+         geom_point() + scale_size_area() + 
+         geom_line(mapping=aes(x=z,y=emp_sel,colour=y),inherit.aes=FALSE) +
+         geom_smooth(mapping=aes(x=z,y=emp_sel),inherit.aes = FALSE) + 
+         facet_grid(rows = .~x,scales = "free_x") +
+         labs(x="size (mm CW)",y="empirical\ncatchability",
+              colour="study\nyear",size="crab\nsampled") + 
+         wtsPlots::getStdTheme() + 
+         theme(legend.position.inside=c(0.01,0.99),
+               legend.justification=c(0,1),
+               panel.grid=element_line(colour="grey"),
+               panel.grid.minor.y=element_blank());
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  rm(tmp,p1);
+```
+
+Both the intercept and the year-invariant smooth term $s(z)$ were highly significant ($p$ values < 0.0001) for all three models (Tables [-@tbl-EmpSel-Mdl1F]-[-@tbl-EmpSel-Mdl3F]). Of the six year-specific "factor" smooths ($ti(z,y)$) in Model 2, four were significant ($p$ values < 0.005; 2013, 2015, 2016, and 2018), while two were not significant ($p$ > 0.4; 2014 and 2017; [@tbl-EmpSel-Mdl2F]). The random effects term in Model 3, $s_{RE}(z,y)$, was also found to be highly significant ($p$ < 0.0001; [@tbl-EmpSel-Mdl3F]). The estimated Tweedie power parameter ranged from 1.642 for Model 1 to 1.753 for Model 2, with an intermediate value (1.723) for Model 3 ([@tbl-EmpSel-MdlsSmryF]). Of the three, Model 3 exhibited the lowest AIC score (by 15 likelihood units over the next best model) and the highest adjusted $R^2$ ([@tbl-EmpSel-MdlsSmryF]). The BIC scores for Model 2 was 1 likelihood unit less than that for Model 3, but both were substantially less than Model 1 (~40 likelihood units). Diagnostic plots for residuals (Figures [-@fig-EmpSel-Mdl1F1]-[-@fig-EmpSel-Mdl3F1]) exhibited departures from expected cumulative distributions at both ends of those distributions, as well as significant deviations from the KS, dispersion, and outlier tests provided by the DHARMa R package [@DHARMa].
+
+```{r EmpSel-CalcModelsEmpSelFcnsF}
+  mdl1f = mgcv::gam(emp_sel ~ s(z,bs="tp",k=10),
+                     family=mgcv::tw,data=dfrESsp,method="REML",
+                     weights=n_BSFRF/mean(n_BSFRF));
+  mdl2f = mgcv::gam(emp_sel ~ s(z,bs="tp",k=10) + ti(z,by=y,bs="sz"),
+                     family=mgcv::tw,data=dfrESsp,method="REML",select=TRUE,
+                     weights=n_BSFRF/mean(n_BSFRF));
+  #--add "non-study" level to reflect uncertainty associated with unknown random effects
+  dfrESsp1 = dfrESsp |> dplyr::mutate(y=factor(as.character(y),levels=c("non-study",levels(y))));
+  mdl3f = mgcv::gam(emp_sel ~ s(z,bs="tp",k=10) + s(z,y,bs="fs"),
+                     family=mgcv::tw,data=dfrESsp1,method="REML",select=TRUE,
+                     weights=n_BSFRF/mean(n_BSFRF),
+                    drop.unused.levels=FALSE);
+  #--define prediction grids
+  grids = list(z=(dfrESsp |> dplyr::distinct(z))[[1]],
+               y=(dfrESsp |> dplyr::distinct(y))[[1]]);
+  grids1 = list(z=(dfrESsp |> dplyr::distinct(z))[[1]],
+                y=factor("non-study"));
+  #--predict time-invariant response
+  prd1ft = prdMod(mdl1f,trms=c("(Intercept)","s(z)"),
+                 lst=grids,type="response",keep="z");
+  prd2ft = prdMod(mdl2f,trms=c("(Intercept)","s(z)"),
+                  lst=grids,type="response",keep="z");
+  prd3ft = prdMod(mdl3f,trms=c("(Intercept)","s(z)"),
+                 lst=grids1,type="response",keep="z");
+  maxSel = c("Model 1"=max(prd1ft$emp_sel),
+             "Model 2"=max(prd2ft$emp_sel),
+             "Model 3"=max(prd3ft$emp_sel));
+  maxSelZs = c("Model 1"=(dplyr::filter(prd1ft,emp_sel==maxSel["Model 1"])[1,])$z,
+               "Model 2"=(dplyr::filter(prd2ft,emp_sel==maxSel["Model 2"])[1,])$z,
+               "Model 3"=(dplyr::filter(prd3ft,emp_sel==maxSel["Model 3"])[1,])$z);
+```
+
+```{r tbl_EmpSel-Mdl1F,eval=TRUE}
+#| results: asis
+  flx = flextable::as_flextable(mdl1f);
+  cap = paste0("Summary results for Model 1 for females.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(flx,
+                                             lbl="tbl-EmpSel-Mdl1F",
+                                             cap=cap,
+                                             ori="P"));
+  rm(flx,cap);
+```
+
+```{r tbl_EmpSel-Mdl2F,eval=TRUE}
+#| results: asis
+  flx = flextable::as_flextable(mdl2f);
+  cap = paste0("Summary results for Model 2 for females.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(flx,
+                                             lbl="tbl-EmpSel-Mdl2F",
+                                             cap=cap,
+                                             ori="P"));
+  rm(flx,cap);
+```
+
+```{r tbl_EmpSel-Mdl3F,eval=TRUE}
+#| results: asis
+  flx = flextable::as_flextable(mdl3f);
+  cap = paste0("Summary results for Model 3 for females.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(flx,
+                                             lbl="tbl-EmpSel-Mdl3F",
+                                             cap=cap,
+                                             ori="P"));
+  rm(flx,cap);
+```
+
+```{r tbl_EmpSel-MdlsSmryF,eval=TRUE}
+#| results: asis
+  mdls = list(`Model 1`=mdl1f,`Model 2`=mdl2f,`Model 3`=mdl3f);
+  ft = getSmryFlxTbl(mdls);
+  cap = paste0("Comparison of model summary results for females.");
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(ft,
+                                             lbl="tbl-EmpSel-MdlsSmryF",
+                                             cap=cap,
+                                             ori="P"));
+  rm(mdls,ft,cap);
+```
+
+```{r fig_EmpSel-Mdl1F1} 
+#| results: asis
+#| fig-cap: "DHARMa residuals from Model 1 for females. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl1f = DHARMa::simulateResiduals(mdl1f);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl1f)),ori="L"));
+  rm(resSimMdl1f);
+```
+
+```{r fig_EmpSel-Mdl2F1}
+#| results: asis
+#| fig-cap: "DHARMa residuals from Model 2 for females. Left: quantile-quantile plot for observed and expected residuals under null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl2f = DHARMa::simulateResiduals(mdl2f);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl2f)),ori="L"));
+  rm(resSimMdl2f);
+```
+
+```{r fig_EmpSel-Mdl3F1}
+#| results: asis
+#| fig-cap: "DHARMa residuals from Model 3 for females. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl3f = DHARMa::simulateResiduals(mdl3f);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl3f)),ori="L"));
+  rm(resSimMdl3f);
+```
+
+The time-invariant estimates of catchability, $S(z)$ ($= exp(\alpha+s(z))$, where $\alpha$ is the estimated link-scale intercept and $s(z)$ is the estimated link-scale smooth function of size, $z$), were reasonably similar for Models 1 and 3, although the Model 1 curve was more logistic-like (i.e., rising to an asymptote) while the Model 3 curve was more dome-shaped, exhibiting a slightly declining trend after reaching its maximum ([@fig-EmpSel-AllMdlsSelF]). In contrast, the estimated time-invariant catchability curve from Model 2 exhibited a linearly increasing trend across the 25-135 mm CW size range for females with a slope less than the initial slopes of the Model 1 and Model 3 curves such that the estimated Model 2 curve was less than those for the other models at sizes below ~80 mm CW but higher at sizes above 100 mm CW. Estimates for fully-selected catchability, or $q$ (the maximum of $S(z)$), were similar for Models 1 and 3 (0.299 and 0.329, respectively), while $q$ for Model 2 was 0.464. The 5-mm size bins at which full selection occurred were similar for Models 1 and 3 (70-75 mm CW), while the curve for Model 2 reached its maximum at the upper bound of female sizes (135 mm CW; [@tbl-EmpSel-AllMdlsQF]). As with males, the uncertainty in the estimated curves at large sizes (above 100 mm CW for femals) was considerable. Below 100 mm CW, the uncertainty associated with the estimated curve from Model 3 was larger (as with males, on the order of 2*x*) than that of the other two models at any size because it reflects the estimated *population-level* (i.e., for any randomly-selected year) variability in catchability, not the variability associated with the specific years of the SBS studies. 
+
+```{r fig_EmpSel-AllMdlsSelF}
+#| results: asis
+#| fig-cap: "Comparison of the estimated time-invariant estimated selectivity, $S(z)$, for females from the three models."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfr = dplyr::bind_rows(
+          prd1ft |> dplyr::mutate(model="1"),
+          prd2ft |> dplyr::mutate(model="2"),
+          prd3ft |> dplyr::mutate(model="3")
+  )
+  p1 = ggplot(dfr,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=model,fill=model)) +
+        geom_line() + geom_ribbon(alpha=0.3) +
+        labs(x="size (mm CW)",y="estimated time-invariant selectivity");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="L"));
+  rm(dfr,p1);
+```
+
+```{r tbl_EmpSel-AllMdlsQF,eval=TRUE}
+#| results: asis
+  dfr = tibble::tibble(model=names(maxSel),q=unname(maxSel),`size (mm CW)`=unname(maxSelZs));
+  dfr$`size (mm CW)`[1] = 70;#--hard-wired to catch "first" max"--very logistic-like curve
+  ft = flextable::flextable(dfr) |>
+         flextable::vline(j=1) |>
+         flextable::colformat_double(j=2,digits=3) |>
+         flextable::width(j=3,width=1);
+  cap = paste0('Results for fully-selected catchability ("q") and size at full selection for females.');
+  lstTbls = c(lstTbls,
+              wtsQMD::insertFlextableIntoQMD(ft,
+                                             lbl="tbl-EmpSel-AllMdlsQF",
+                                             cap=cap,
+                                             ori="P"));
+  rm(dfr,ft,cap);
+```
+
+```{r fig_EmpSel-AllMdlsSelPRsF}
+#| results: asis
+#| fig-cap: 'Partial residuals to the smooth term `s(z)` (solid line; shading: 90% confidence interval) by size and year (the latter as a factor) on the link (natural logarithm) scale. The area of each residual is scaled to the number of females caught at size by the BSFRF gear. There is no term for "non-study" years.'
+#| fig-asp: 1.2
+  dfr1 = gratia:::smooth_estimates(mdl1f,select="s(z)",partial_match=TRUE,
+                                  unconditional=TRUE,overall_uncertainty=TRUE) |>
+           gratia::add_confint() |> dplyr::mutate(model="Model 1");
+  dfr2 = gratia:::smooth_estimates(mdl2f,select="s(z)",
+                                    unconditional=TRUE,overall_uncertainty=TRUE) |>
+            gratia::add_confint() |> dplyr::mutate(model="Model 2");
+  dfr3 = gratia:::smooth_estimates(mdl3f,select="s(z)",
+                                    unconditional=TRUE,overall_uncertainty=TRUE) |>
+            gratia::add_confint() |> dplyr::mutate(model="Model 3");
+  dfr = dplyr::bind_rows(dfr1,dfr2,dfr3);
+  dfrPRs1 = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl1f,select=paste0("s(z)")) |>
+              dplyr::rename(residuals=any_of(paste0("s(z)")))) |>
+              dplyr::mutate(model="Model 1");
+  dfrPRs2 = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl2f,select="s(z)") |>
+              dplyr::rename(residuals="s(z)")) |>
+              dplyr::mutate(model="Model 2");
+  dfrPRs3 = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl3f,select="s(z)") |>
+              dplyr::rename(residuals="s(z)")) |>
+              dplyr::mutate(model="Model 3");
+  dfrPRs = dplyr::bind_rows(dfrPRs1,dfrPRs2,dfrPRs3);
+  p1 = ggplot(dfr,aes(x=z,y=.estimate,ymin=.lower_ci,ymax=.upper_ci)) +
+        geom_line() + geom_ribbon(colour=NA,alpha=0.3) +
+        geom_point(data=dfrPRs,mapping=aes(x=z,y=residuals,colour=y,size=n_BSFRF),
+                   inherit.aes=FALSE) +
+        scale_size_area(name="n (BSFRF)") +
+        facet_wrap(~model,ncol=1) +
+        labs(x="size (mm CW)",y="link scale",colour="study\nyear",fill="study\nyear");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1));
+  rm(dfr1,dfr2,dfr3,dfr,dfrPRs1,dfrPRs2,dfrPRs3,dfrPRs,p1)
+```
+
+```{r fig_EmpSel-Mdl2FullSelF} 
+#| results: asis
+#| fig-cap: "Estimated survey selectivity for females from Model 2. Upper plot: annual estimates by study year. Lower plot: factor smooth interaction terms `ti(z,y,bs='sz')` (solid line; shading: 90% confidence interval) by size and year (the latter as a factor) on the link (natural logarithm) scale. The area of each residual is scaled to the number of females caught at size by the BSFRF gear."
+#| fig-asp: 1.0
+  prd2f = prdMod(mdl2f,trms=c("all"),lst=grids,type="response");
+  p1 = plotMod(prd2f,c(0,1.5));
+  dfr = gratia:::smooth_estimates(mdl2f,select="ti(z):y",partial_match=TRUE,
+                                  unconditional=TRUE,overall_uncertainty=TRUE) |>
+          gratia::add_confint() |>
+          dplyr::mutate(y=factor(as.character(y),
+                                 levels=c(as.character(2013:2018),"non-study")));
+  lstPRs = list();
+  for (y_ in levels(dfrESs$y))
+    lstPRs[[y_]] = dplyr::bind_cols(
+                     dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                     gratia::partial_residuals(mdl2f,select=paste0("ti(z):y",y_)) |>
+                       dplyr::rename(residuals=any_of(paste0("ti(z):y",y_)))
+                   ) |> dplyr::filter(y==y_);
+  dfrPRs = dplyr::bind_rows(lstPRs); rm(lstPRs);
+  p2 = ggplot(dfr,aes(x=z,y=.estimate,ymin=.lower_ci,ymax=.upper_ci)) +
+        geom_line() + geom_ribbon(colour=NA,alpha=0.3) +
+        geom_point(data=dfrPRs,mapping=aes(x=z,y=residuals,size=n_BSFRF),
+                   inherit.aes=FALSE) +
+        scale_size_area(name="n (BSFRF)") + facet_wrap(~y,drop=FALSE) +
+        guides(colour="none",fill="none") +
+        labs(x="size (mm CW)",y="link scale",colour="study\nyear",fill="study\nyear") +
+        theme(legend.justification=c(0.0,0.0),
+              legend.position="inside",
+              legend.position.inside=c(0.4,0.2),
+              legend.direction="horizontal");
+  pg = cowplot::plot_grid(p1,p2,ncol=1,rel_heights=c(1,2));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg));
+  rm(prd2f,p1,dfr,dfrPRs,p2,pg);
+```
+
+```{r fig_EmpSel-Mdl3FullF}
+#| results: asis
+#| fig-cap: "Estimated survey selectivity for females from Model 3. Upper plot: annual estimates by study year. Lower plot: random factor smooth interaction terms `s(z,y,bs='fs')` (solid line; shading: 90% confidence interval) by size and year (the latter as a factor) on the link (natural logarithm) scale. The area of each residual is scaled to the number of females caught at size by the BSFRF gear. 'non-study' denotes the link-scale term for any non-study year, reflecting the overall uncertainty associated with unobserved random effects."
+#| fig-asp: 1.0
+  prd3f = prdMod(mdl3f,trms=c("all"),lst=grids,type="response");
+  p1 = plotMod(prd3f,c(0,1.5)) + theme(axis.title.x=element_blank());
+  dfr = gratia:::smooth_estimates(mdl3f,select="s(z,y)",unconditional=TRUE,overall_uncertainty=TRUE) |>
+          gratia::add_confint() |>
+          dplyr::mutate(y=factor(as.character(y),
+                                 levels=c(as.character(2013:2018),"non-study")));
+  dfrPRs = dplyr::bind_cols(dfrESsp |> dplyr::filter(!is.na(emp_sel)),
+                            gratia::partial_residuals(mdl3f,select="s(z,y)") |>
+                              dplyr::rename(residuals="s(z,y)"));
+  p2 = ggplot(dfr,aes(x=z,y=.estimate,ymin=.lower_ci,ymax=.upper_ci)) +
+        geom_line() + geom_ribbon(colour=NA,alpha=0.3) +
+        geom_point(data=dfrPRs,mapping=aes(x=z,y=residuals,size=n_BSFRF),inherit.aes=FALSE) +
+        scale_size_area(name="n (BSFRF)") + facet_wrap(~y) +
+        guides(colour="none",fill="none") +
+        labs(x="size (mm CW)",y="link-scale",colour="study\nyear",fill="study\nyear") +
+        theme(legend.justification=c(0.0,0.0),
+              legend.position="inside",
+              legend.position.inside=c(0.4,0.2),
+              legend.direction="horizontal");
+  pg = cowplot::plot_grid(p1,p2,ncol=1,rel_heights=c(1,2));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg));
+  rm(prd3f,p1,dfr,dfrPRs,p2,pg);
+```
+
+```{r fig_EmpSel_BestEsts}
+```
+
+```{r EmpSel_CleanupF}
+  rm(dfrESsp,dfrESsp1);
+```
+
+### Best models
+
+Based on the summary model statistics (Tables [-@tbl-EmpSel-MdlsSmryM] and [-@tbl-EmpSel-MdlsSmryF]) and the residuals plots, Model 3 is the most satisfactory of the three models for each sex to describe NMFS survey catchability for male and female Tanner crab using the "observed" empirical selectivity. In addition to fitting the data equal to or better than the other two models, Model 3 captures the population-level uncertainty in the estimated curves more appropriately than the other two models when the goal is to apply the curves to arbitrary years.
+
+```{r fig_EmpSel-BestFcns}
+#| results: asis
+#| fig-cap: "Comparison of the estimated time-invariant estimated selectivity, $S(z)$, from the model regarded as the most satisfactory for each sex (Model 3, in both cases)."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfr = dplyr::bind_rows(
+          prd3mt |> dplyr::mutate(sex="male"),
+          prd3ft |> dplyr::mutate(sex="female")
+  )
+  p1 = ggplot(dfr,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=sex,fill=sex)) +
+        geom_line() + geom_ribbon(alpha=0.3) +
+        labs(x="size (mm CW)",y="estimated time-invariant selectivity");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="L"));
+  rm(dfr,p1);
+```
+
+```{r EmpSel_SaveMdls}
+  lst = list(males=list(best=list(mdl=mdl3m,prd=prd3mt),
+                        results=list(`Model 1`=list(mdl=mdl1m,prd=prd1mt),
+                                     `Model 2`=list(mdl=mdl2m,prd=prd2mt),
+                                     `Model 3`=list(mdl=mdl3m,prd=prd3mt)
+                                     )
+                        ),
+             females=list(best=list(mdl=mdl3f,prd=prd3ft),
+                          results=list(`Model 1`=list(mdl=mdl1f,prd=prd1ft),
+                                       `Model 2`=list(mdl=mdl2f,prd=prd2ft),
+                                       `Model 3`=list(mdl=mdl3f,prd=prd3ft)
+                                     )
+                        )
+             );
+  wtsUtilities::saveObj(lst,file.path(dirThs,"rda_EmpSelModels.RData"));
+```
+
+```{r EmpSel_Cleanup}
+  rm(lst);
+  rm(mdl1m,mdl2m,mdl3m,prd1mt,prd2mt,prd3mt);
+  rm(mdl1f,mdl2f,mdl3f,prd1ft,prd2ft,prd3ft);
+```
+
+<!-- references -->
+```{r,eval=!knitr::opts_knit$get("child")&(!isPDF),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_SurvSel
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_SurvSel
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

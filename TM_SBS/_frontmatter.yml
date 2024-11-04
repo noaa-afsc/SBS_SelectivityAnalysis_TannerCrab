@@ -1,0 +1,78 @@
+format:
+  titlepage-pdf:
+    # documentclass: scrbook
+    # classoption: ["oneside", "open=any"]
+    # keep-tex: true
+    toc: true
+    toc-depth: 2
+    coverpage: true
+    coverpage-bg-image: "images/cover-header-2.png"
+    coverpage-header: "NOAA Technical Memorandum NMFS-XXX-##"
+    coverpage-date: today
+    coverpage-date-format: long
+    coverpage-footer: |
+      U.S. DEPARTMENT OF COMMERCE \
+      \
+      National Oceanic and Atmospheric Administration \
+      National Marine Fisheries Service \
+      Alaska Fisheries Science Center
+    coverpage-theme:
+      title-style: "plain"
+      title-align: "left"
+      bg-image-left: "0pt"
+      bg-image-bottom: "8.75in"
+      bg-image-size: "\\paperwidth"
+      coverpage-theme:
+      header-fontsize: 16
+      header-left: 2.3in
+      header-width: 5in
+      header-bottom: 9.8in
+      header-color: "white"
+      title-fontsize: 30
+      title-left: 1.25in
+      title-width: 6in
+      title-bottom: 8.5in
+      title-color: "nmfsblue1"
+      author-fontsize: 20
+      author-left: 2.3in
+      author-width: 5in
+      author-bottom: 4.5in
+      footer-style: "plain"
+      footer-fontsize: 8
+      footer-left: 6in
+      footer-width: 2.5in
+      date-style: "plain"
+      date-fontsize: 12
+      date-left: 6in
+      date-width: 2.5in
+      date-bottom: 2in
+    include-in-header:
+      text: |
+        \usepackage[default]{opensans}
+        \fontseries{lc}\selectfont
+        \definecolor{nmfsblue1}{HTML}{00467f}
+        \definecolor{nmfsblue2}{HTML}{007eb2}
+#        \usepackage[default,oldstyle,scale=0.95]{opensans}
+    titlepage: true
+    titlepage-bg-image: "images/corner-image.png"
+    titlepage-geometry: ["top=3in", "bottom=1in", "right=1in", "left=1.75in"]
+    titlepage-theme:
+      title-style: "plain"
+      title-fontsize: 25
+      title-fontstyle: ["bfseries"]
+      title-color: "nmfsblue1"
+      title-align: "left"
+      author-fontsize: 20
+      vrule-width: 0pt
+      bg-image-size: "0.75\\paperwidth"
+      bg-image-location: "ULCorner"
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+  docx:
+    toc: true
+    toc-depth: 2
+    reference-doc: template.docx
+    always_allow_html: true
+
