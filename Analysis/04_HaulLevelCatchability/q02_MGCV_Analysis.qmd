@@ -1,0 +1,927 @@
+---
+title: "Tanner crab SBS studies: MGCV analysis"
+author: "William T. Stockhausen"
+institute: "AFSC/NMFS/NOAA"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 6
+reference-location: document
+reference-section-title: References
+bibliography: "../../Bibliography/bib_SBS-TannerCrab-doc.bib" 
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    toc-depth: 6
+    fig-width: 8
+    fig-asp: 1.4
+    fig-dpi: 100
+    embed-resources: true
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+      - file: "/Users/williamstockhausen/Work/Programming/R/Library/wtsQMD/files/ltx_ExtraLatexIncludes.tex"
+echo: false
+warning: false
+results: 'hide'
+keep-md: true
+keep-yaml: true
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: MGCV2_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_MGCV2
+#| results: 'asis'
+  require(ggplot2);
+  require(kableExtra);
+  require(tables);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) cat("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/04_MGCV_Analysis");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s",mode="list")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+  ##--
+```
+
+## Paired-haul selectivity models
+
+As noted previously, the proportion of individuals caught in paired haul *h* in size bin *z* by the target gear relative to all individuals caught in the size bin, $p_{h,z}$, is related to the ratio of the target to reference gear selectivities $r_{h,z}$ by
+
+$$logit(p_{h,z}) = ln(\frac{p_{h,z}}{1-p_{h,z}}) = ln(r_{h,z}) + ln(q_h)$$
+where $q_h$ is the ratio of gear expansion factors $\frac{S_h^t \cdot A_h^t}{S_h^tr \cdot A_h^r}$ ($S_h^x$ is the sampling fraction and $A_h^x$ is the area swept for gear $x$ on haul $h$).
+
+A number of paired-haul selectivity models were evaluated by sex to select the "best" sex-specific models for NMFS Tanner crab haul selectivity under the assumption that BSFRF gear selectivity was 1 for all Tanner crab sizes (such that the selectivity ratio $R$ is equivalent to the NMFS selectivity). All models for $ln(r_{h,z})$ were implemented as generalized additive models (GAMs) using the *gam* function from the R package *mgcv* [@Wood2011; @Wood2017] and fit with various non-parametric "smooth" functions to evaluate potential main effects and two-way interactions of gear depth ($d$), bottom temperature ($t$), and local sediment characteristics ($-log_2(\phi)$, denoted as $f$ in the following, and sorting coefficient $s$) on NMFS gear size selectivity represented by the general form
+
+$$ln(r_{h,z}) = \alpha + s(z) + \sum_i {\beta_i \cdot s_i(x_{i,h})} + \sum_i \gamma_i \cdot s_i(z,x_{i,h}) + \sum_i {\delta_{i,j} \cdot s_{i,j}(x_{i,h},x_{j,h})} $$
+where $\alpha$ is a global intercept, the $s$'s represents smooth functions, and the $\beta_i$'s, $\gamma_i$'s, and $\delta_{i,j}$'s are 1 or 0 to include/exclude the associated smooth term. The first two terms (intercept $\alpha$ and were main size effect $ti(z)$) were common to all models. Models of additional complexity that included environmental covariates were selected by setting the $\beta_i$, $\gamma_i$, and $\delta_{i,j}$ coefficients to 0 or 1 to include or exclude the associated smooth term in the model. The smooth terms were implemented using the "tensor interaction" *mgcv* function *ti*, which was appropriate for evaluating the significance of individual terms with the "ts" basis. The "ts" basis is a thin plate spline with extra shrinkage for each variable in the smooth function [@Wood2011; @Wood2017]. Model estimation used a Laplace approximation to restricted maximum likelihood (REML) as the optimization method for all models  [@Wood2011; @Wood2017]. @Wood2011 suggests this may be the most effective choice among the alternatives available in *mgcv*.
+
+```{r MGCV2-GetPairedHaulData}
+  #--the logit-scale observed proportions "o" are related to the
+  #--NMFS-to-BSFRF selectivity ratio "r" (S_nmfs/S_bsfrf) by
+  #     logit(o) = ln(r) + ln(q)
+  # where q = expF_bsfrf/expF_nmfs = (sampling_fraction*AREA_SWEPT)_nmfs/(sampling_fraction*AREA_SWEPT)_bsfrf
+  # is the ratio of expansion factors used to convert
+  # numbers sampled to CPUE: i.e., CPUE = N_s * expF, where expF = 1/(As * Sf),
+  # and As = area swept and Sf is the sampling fraction (note that
+  # the SAMPLING_FACTOR in the haul data tables is 1/(sampling fraction),
+  # so expF = SAMPLING_FACTOR/AREA_SWEPT).
+  dfrDat = wtsUtilities::getObj(file.path(dirThs,"rda_dfrTrimmedData.RData"));
+  
+  #--extract characteristics from size and environmental data
+  #----size
+  grd_z = seq(5,180,5)+2.5; med_z = 77.5;
+  #--depth
+  med_d = median(dfrDat$d,na.rm=TRUE); rng_d = range(dfrDat$d,na.rm=TRUE);
+  grd_d = seq(from=rng_d[1],rng_d[2],length.out=50);
+  #--temperature
+  med_t = median(dfrDat$t,na.rm=TRUE); rng_t = range(dfrDat$t,na.rm=TRUE);
+  grd_t = seq(from=rng_t[1],rng_t[2],length.out=50);
+  #--phi
+  med_f = median(dfrDat$f,na.rm=TRUE); rng_f = range(dfrDat$f,na.rm=TRUE);
+  grd_f = seq(from=rng_f[1],rng_f[2],length.out=50);
+  #--sorting
+  med_s = median(dfrDat$s,na.rm=TRUE); rng_s = range(dfrDat$s,na.rm=TRUE);
+  grd_s = seq(from=rng_s[1],rng_s[2],length.out=50);
+  
+  grids = list(z=grd_z,d=grd_d,t=grd_t,f=grd_f,s=grd_s);
+  lbls  = list(z="size (mm CW)",d="depth (m)",t="temperature (deg C)",f="-log2(phi)",s="sorting coeff.")
+```
+
+```{r MGCV2-DefFcns}
+require(magrittr);
+require(mgcv);
+#'
+#' @title Estimate selectivity ratio
+#'
+#' @importFrom dplyr mutate
+#' @importFrom magrittr %<>%
+#' @import mgcv
+#'
+#' @export
+#'
+estSelRatio<-function(
+            dfrDat,
+            formula,
+            family=stats::binomial(),
+            method="REML",
+            select=FALSE,
+            scale=0){
+  mdl = mgcv::gam(data=dfrDat,family=family,formula=formula,weights=n,
+                  method=method,select=select,scale=scale,offset=lnq);
+
+  #--extract fitted values and calculate associated selectivity ratio
+  if (family$family=="binomial"){
+    dfrDat %<>% dplyr::mutate(fits=fitted(mdl),                         #--fitted values on response scale (i.e., prNMFS)
+                              residuals=residuals(mdl,type="deviance"), #--deviance residuals for qqplot
+                              lnR=log(fits/(1-fits))-lnq,               #--corresponding values of lnR
+                              R=exp(lnR));                              #--corresponding values of R
+  } else { #--negative binomial
+    dfrDat %<>% dplyr::mutate(fits=fitted(mdl),                         #--fitted values on response scale (i.e., logit(prNMFS))
+                              residuals=residuals(mdl,type="deviance"), #--deviance residuals for qqplot
+                              lnR=fits-lnq,                             #--corresponding values of lnR
+                              R=exp(lnR));                              #--corresponding values of R
+  }
+  return(list(model=mdl,data=dfrDat));
+}
+
+plotEsts<-function(dfrDat,showPlots=FALSE){
+  ps = list();
+  #--plot fitted values
+  ps[["1a"]] = ggplot2::ggplot(data=dfrDat,mapping=ggplot2::aes(x=z,y=fits,colour=y)) +
+                ggplot2::geom_point() + ggplot2::geom_smooth() +
+                ggplot2::labs(x="size (mm CW)",y="fitted prNMFS");
+  if (showPlots) print(ps[["1a"]]);
+  ps[["1b"]] = ggplot2::ggplot(data=dfrDat,mapping=ggplot2::aes(x=z,y=lnR,colour=y)) +
+                ggplot2::geom_point() + ggplot2::geom_smooth() +
+                ggplot2::labs(x="size (mm CW)",y="predicted lnR");
+  if (showPlots) print(ps[["1b"]]);
+  ps[["1c"]] = ggplot2::ggplot(data=dfrDat,mapping=ggplot2::aes(x=z,y=R,colour=y)) +
+                ggplot2::geom_point() + ggplot2::geom_smooth() +
+                ggplot2::labs(x="size (mm CW)",y="predicted R");
+  if (showPlots) print(ps[["1c"]]);
+
+  #--plot residuals
+  ps[["2a"]]  = ggplot2::ggplot(data=dfrDat,mapping=ggplot2::aes(x=z,y=residuals,colour=y)) +
+                 ggplot2::geom_point() + ggplot2::geom_smooth() +
+                 ggplot2::labs(x="size (mm CW)",y="deviance residuals");
+  if (showPlots) print(ps[["2a"]]);
+  ps[["2b"]]  = ggplot2::ggplot(data=dfrDat,mapping=ggplot2::aes(x=fits,y=residuals,colour=y)) +
+                 ggplot2::geom_point() + ggplot2::geom_smooth() +
+                 ggplot2::labs(x="fitted values",y="deviance residuals");
+  if (showPlots) print(ps[["2b"]]);
+  ps[["2c"]]  = ggplot2::ggplot(data=dfrDat,mapping=ggplot2::aes(sample=residuals)) +
+                 ggplot2::geom_qq() + ggplot2::geom_qq_line() +
+                 ggplot2::labs(x="fitted values",y="deviance residuals");
+  if (showPlots) print(ps[["2c"]]);
+
+  return(ps);
+}
+
+#'
+#' @title Calculate the predicted (ln-scale) selectivity ratio across a grid of covariates
+#' @description Function to calculate the predicted (ln-scale) selectivity ratio across a grid of covariates.
+#'
+#' @param model - [mgcv::gam()] model object
+#' @param dfrNew - expanded grid tibble with covariate values at which to calculate the selectivity
+#'
+#' @return a tibble replicating dfrNew with additional columns prdLnR and seLnR
+#'
+#' @import mgcv
+#' @importFrom dplyr mutate
+#' @export
+#'
+calcPrdSel<-function(model,dfrNew){
+  prd = predict(model,newdata=dfrNew,se.fit=TRUE,type="link",newdata.guaranteed=TRUE,unconditional=TRUE);
+  dfrPrd = dfrNew |>
+             dplyr::mutate(prdLnR=prd$fit,   #--offset is lnq is 0, identically
+                           seLnR=prd$se.fit);#--standard error
+  return(dfrPrd);
+}
+
+#'
+#' @title Plot predicted selectivity estimates along 1 covariate
+#'
+#' @param dfrPrd - dataframe with columns prdLnR, seLnR, and covariates
+#' @param x_ - covariate column to plot against
+#' @param xlab - label for x axis
+#' @param xints - x intercepts for vertical dashed reference lines (if not NULL)
+#' @param dfrDat - original data to use for rug plots
+#' @param ci - two-sided confidence interval
+#' @return list of two plots (lnR, R vs.x_)
+#' @importFrom wtsPlots getStdTheme
+#' @import ggplot2
+#' @export
+#'
+plotPrdSel1D<-function(dfrPrd,x_,xlab="size (mm CW)",xints=NULL,dfrDat=NULL,ci=0.80){
+  dci = (1-ci)/2;
+  mlt = pnorm(1-dci,0,1);#se multiplier corresponding to ci
+  ps = list();
+
+  #--plot predicted selectivity values
+  p = ggplot(data=dfrPrd,mapping=aes(x={{x_}},y=prdLnR,ymin=prdLnR-mlt*seLnR,ymax=prdLnR+mlt*seLnR)) +
+        geom_line() + geom_ribbon(alpha=0.4) +
+        geom_hline(yintercept=log(c(0.5,1)),linetype=2) +
+        labs(x=xlab,y="ln(selectivity ratio)",
+             subtitle=paste0(tolower(x),"s: ","predicted ln-scale R with ",100*ci,"% CI.")) +
+        wtsPlots::getStdTheme();
+  if (!is.null(xints))  p = p + geom_vline(xintercept=xints,linetype=2);
+  if (!is.null(dfrDat)) p = p + geom_rug(data=dfrDat,mapping=aes(x={{x_}}),inherit.aes=FALSE)
+  ps[["lnR"]] = p;
+
+  p = ggplot(data=dfrPrd,mapping=aes(x={{x_}},y=exp(prdLnR+(seLnR^2)/2),
+                                     ymin=exp(prdLnR-mlt*seLnR),ymax=exp(prdLnR+mlt*seLnR))) +
+        geom_line() + geom_ribbon(alpha=0.4) +
+        geom_hline(yintercept=c(0,0.5,1),linetype=2) +
+        labs(x=xlab,y="selectivity ratio",
+             subtitle=paste0(tolower(x),"s: ","predicted R with ",100*ci,"% CI.")) +
+        wtsPlots::getStdTheme();
+  if (!is.null(xints))  p = p + geom_vline(xintercept=xints,linetype=2);
+  if (!is.null(dfrDat)) p = p + geom_rug(data=dfrDat,mapping=aes(x={{x_}}),inherit.aes=FALSE)
+  ps[["R"]] = p;
+  return(ps);
+}
+
+#'
+#' @title Plot predicted selectivity estimates across 2 covariates
+#'
+#' @param dfrPrd - dataframe with columns prdLnR, seLnR, and covariates
+#' @param x_ - x-axis covariate column to plot against
+#' @param y_ - y-axis covariate column to plot against
+#' @param xlab - label for x axis
+#' @param ylab - label for y axis
+#' @param xints - x intercepts for vertical dashed reference lines (if not NULL)
+#' @param dfrDat - original data to use for rug plots
+#' @param ci - two-sided confidence interval
+#' @return list of two plots (lnR, R vs.x_)
+#' @importFrom wtsPlots getStdTheme
+#' @import ggplot2
+#' @export
+#'
+plotPrdSel2D<-function(dfrPrd,x_,y_,xlab="size (mm CW)",ylab="depth (m)",xints=NULL,dfrDat=NULL,ci=0.80){
+  dci = (1-ci)/2;
+  mlt = pnorm(1-dci,0,1);#se multiplier corresponding to ci
+  ps = list();
+
+  #--plot predicted selectivity values
+  p = ggplot(data=dfrPrd,mapping=aes(x={{x_}},y={{y_}},z=prdLnR)) +
+        geom_contour_filled(breaks=log(c(0.01,0.1,0.5,1,2,10))) +
+        labs(x=xlab,y=ylab,
+             subtitle=paste0(tolower(x),"s: ","predicted ln-scale R")) +
+        wtsPlots::getStdTheme();
+  if (!is.null(xints))  p = p + geom_vline(xintercept=xints,linetype=2);
+  if (!is.null(dfrDat)) {
+    p = p + geom_point(data=dfrDat,mapping=aes(x={{x_}},y={{y_}}),inherit.aes=FALSE,size=0.1,colour="white")
+    p = p + geom_rug(data=dfrDat,mapping=aes(x={{x_}}),inherit.aes=FALSE);
+    p = p + geom_rug(data=dfrDat,mapping=aes(y={{y_}}),inherit.aes=FALSE);
+  }
+  ps[["lnR"]] = p;
+
+  p = ggplot(data=dfrPrd,mapping=aes(x={{x_}},y={{y_}},z=exp(prdLnR+(seLnR^2)/2))) +
+        geom_contour_filled(breaks=c(0.01,0.1,0.5,1,2,10)) + 
+        labs(x=xlab,ylab=ylab,
+             subtitle=paste0(tolower(x),"s: ","predicted R")) +
+        wtsPlots::getStdTheme();
+  if (!is.null(xints))  p = p + geom_vline(xintercept=xints,linetype=2);
+  if (!is.null(dfrDat)) {
+    p = p + geom_point(data=dfrDat,mapping=aes(x={{x_}},y={{y_}}),inherit.aes=FALSE,size=0.1,colour="white")
+    p = p + geom_rug(data=dfrDat,mapping=aes(x={{x_}}),inherit.aes=FALSE);
+    p = p + geom_rug(data=dfrDat,mapping=aes(y={{y_}}),inherit.aes=FALSE);
+  }
+  ps[["R"]] = p;
+  return(ps);
+}
+```
+
+### Males
+
+```{r MGCV2-SetSexM}
+  #--set sex
+  x = "MALE";
+```
+
+#### Binomial models
+
+```{r MGCV2-SetupBinMods}
+  #--set up BINOMIAL model
+  fam = stats::binomial(link="logit");
+  mdlsBM = list();
+  rsltBM = list();
+```
+
+##### Size only
+
+The simplest gam model considered was implemented as a smooth function of size with an intercept. i.e.,
+$$ln(r_h,z) = \alpha + s(z)$$
+This model was evaluated for two values of *k*, 10 and 20, the dimension for the basis of the smooth term [@Wood2011; @Wood2017]. The value for *k* must be selected by the user and sets an upper limit on the degrees of freedom associated with the smooth term. Higher values of *k* allow more "wiggliness" in the smooth term but are computationally more expensive while lower values are less computationally expensive but may provide a too-smooth fit to the data. 
+
+###### k = 10
+
+```{r MGCV2-calcMdlB_1DZa,cache=TRUE}
+#---------mdlB_1DZa: ONLY SIZE TERM; k=10----------------------------------
+#--ln(r) = ti(z)
+  k = 10;
+  frmla = p~ti(z,bs="ts",k=k);
+  mdlB_1DZa = estSelRatio(dfrDat,formula=frmla,family=fam);
+```
+
+```{r MGCV2-resMdlB_1DZa, dependson="MGCV2-calcMdlB_1DZa", results='asis'}
+  mdl = mdlB_1DZa;
+
+  lst_sumry   = summary(mdl$model);
+  txt_sumry   = paste0(capture.output(print(lst_sumry)),collapse="\n");
+  txt_gamchk  = wtsMGCV::gam.check(mdl$model);
+  ps_gamchk   = wtsMGCV::gam.check.plots(mdl$model);
+  lst_prdtrms = wtsMGCV::predSmoothTerms(mdl$model,grids);
+  ps_prdtrms  = wtsMGCV::plotSmoothTerms(lst_prdtrms,labs=lbls,dfrDat=dfrDat,ori="V",ci=0.80)
+  df_prdsel_z = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=med_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_z = plotPrdSel1D(df_prdsel_z,x_=z,xlab="size (mm CW)",xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  rsltBM[["z"]] = list(terms=list(lst=lst_prdtrms,plts=ps_prdtrms),
+                      sumry=list(lst=lst_sumry,txt=txt_sumry,gamchk=txt_gamchk,plts=ps_gamchk),
+                      sel1Ds=list(z=list(dfr=df_prdsel_z,plts=ps_prdsel_z)));
+  rm(mdl);
+  
+  cat("```\nSummary results for the model with k = 10 are:\n",txt_sumry,"\n```\n");
+  cat("```\nResults of checking the smooth term specifically are:\n",txt_gamchk,"\n```\n");
+```
+
+```{r}
+#| label: fig-MdlB-1DZa-Diags
+#| fig-cap: "Diagnostic plots for binomial model $ln(r_h,z) = \\alpha + s(z)$ with k=10."
+  if (!isPDF) print(ps_gamchk) else {
+      lbl = getLabel();
+      cap = wtsQMD::getFigCaption();
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+```{r}
+#| label: fig-MdlB-1DZa-Sel
+#| fig-cap: 
+#| - "Estimated ln-scale selectvity (ratio) for binomial model $ln(r_h,z) = \\alpha + s(z)$ with k=10."
+#| - "Estimated arithmetic-scale selectvity (ratio) for binomial model $ln(r_h,z) = \\alpha + s(z)$ with k=10."
+  if (!isPDF) print(ps_prdsel_z[[1]]) else {
+      lbl = getLabel("1");
+      cap = wtsQMD::getFigCaption()[1];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+  if (!isPDF) print(ps_prdsel_z[[2]]) else {
+      lbl = getLabel("2");
+      cap = wtsQMD::getFigCaption()[2];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+###### k = 20
+
+```{r MGCV2-calcMdlB_1DZb,cache=TRUE}
+#---------mdlB_1DZ: ONLY SIZE TERM; k = 20----------------------------------
+#--ln(r) = ti(z)
+  k = 20;
+  frmla = p~ti(z,bs="ts",k=k);
+  mdlB_1DZb = estSelRatio(dfrDat,formula=frmla,family=fam);
+```
+
+```{r MGCV2-resMdlB_1DZb, dependson="MGCV2-calcMdlB_1DZb", results='asis'}
+  mdl = mdlB_1DZb;
+  
+  lst_sumry   = summary(mdl$model);
+  txt_sumry   = paste0(capture.output(print(lst_sumry)),collapse="\n");
+  txt_gamchk  = wtsMGCV::gam.check(mdl$model);
+  ps_gamchk   = wtsMGCV::gam.check.plots(mdl$model);
+  lst_prdtrms = wtsMGCV::predSmoothTerms(mdl$model,c(grids,h=0));
+  ps_prdtrms  = wtsMGCV::plotSmoothTerms(lst_prdtrms,labs=lbls,dfrDat=dfrDat,ori="V",ci=0.80)
+  df_prdsel_z = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=med_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_z = plotPrdSel1D(df_prdsel_z,x_=z,xlab="size (mm CW)",xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  rsltBM[["z"]] = list(terms=list(lst=lst_prdtrms,plts=ps_prdtrms),
+                       sumry=list(lst=lst_sumry,txt=txt_sumry,gamchk=txt_gamchk,plts=ps_gamchk),
+                       sel1Ds=list(z=list(dfr=df_prdsel_z,plts=ps_prdsel_z)));
+  rm(mdl);
+  
+  cat("```\nSummary results for the model with *k* = 20 are:\n",txt_sumry,"\n```\n");
+  cat("```\nResults of checking the smooth term specifically are:\n",txt_gamchk,"\n```\n");
+```
+
+```{r}
+#| label: fig-MdlB-1DZb-Diags
+#| fig-cap: "Diagnostic plots for binomial model $ln(r_h,z) = \\alpha + s(z)$ with k=20."
+  if (!isPDF) print(ps_gamchk) else {
+      lbl = getLabel();
+      cap = wtsQMD::getFigCaption();
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+```{r}
+#| label: fig-MdlB-1DZb-Sel
+#| fig-cap: 
+#| - "Estimated ln-scale selectvity (ratio) for binomial model $ln(r_h,z) = \\alpha + s(z)$ with k=20."
+#| - "Estimated arithmetic-scale selectvity (ratio) for binomial model $ln(r_h,z) = \\alpha + s(z)$ with k=20."
+  if (!isPDF) print(ps_prdsel_z[[1]]) else {
+      lbl = getLabel("1");
+      cap = wtsQMD::getFigCaption()[1];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+  if (!isPDF) print(ps_prdsel_z[[2]]) else {
+      lbl = getLabel("2");
+      cap = wtsQMD::getFigCaption()[2];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+Comparing the basis dimension *k* to the empirical degrees of freedom (*edf*) suggests that a *k* of 10 may be too low for the $s(z)$ term. However, the degree of wiggliness in the estimated selectivity curve appears to be rather larger than expected and the trend for crabs larger than 150 mm CW seems unrealistic.
+
+##### All main effects
+
+The simplest gam model considered was implemented as a smooth function of size with an intercept. i.e.,
+$$ln(r_h,z) = \alpha + s(z) + \sum_i {\beta_i \cdot s_i(x_{i,h})}$$
+This model was evaluated for two values of *k*, 10 and 20, the dimension for the basis of the smooth term [@Wood2011; @Wood2017]. The value for *k* must be selected by the user and sets an upper limit on the degrees of freedom associated with the smooth term. Higher values of *k* allow more "wiggliness" in the smooth term but are computationally more expensive while lower values are less computationally expensive but may provide a too-smooth fit to the data. 
+
+
+```{r MGCV2-calcMdlB_All1Da,cache=TRUE}
+#---------mdlB_All1D: ALL 1-WAY TERMS----------------------------------
+#--ln(r) = ti(z) + ti(d) + ti(t) + ti(f) + ti(s)
+  k=10;
+  frmla = p~ti(z,bs="ts",k=k)+ti(d,bs="ts",k=k)+ti(t,bs="ts",k=k)+ti(f,bs="ts",k=k)+ti(s,bs="ts",k=k);
+  mdlB_All1Da   = estSelRatio(dfrDat,frmla,family=fam,select=TRUE);
+  rm(k,frmla);
+```
+
+```{r MGCV2-resMdlB_All1Da,dependson="MGCV2-calcMdlB_All1Da"}
+  mdl = mdlB_All1Da;
+  
+  lst_sumry   = summary(mdl$model);
+  txt_sumry   = paste0(capture.output(print(lst_sumry)),collapse="\n");
+  txt_gamchk  = wtsMGCV::gam.check(mdl$model);
+  ps_gamchk   = wtsMGCV::gam.check.plots(mdl$model);
+  lst_prdtrms = wtsMGCV::predSmoothTerms(mdl$model,grids);
+  ps_prdtrms  = wtsMGCV::plotSmoothTerms(lst_prdtrms,labs=lbls,dfrDat=dfrDat,ori="V",ci=0.80)
+  df_prdsel_z = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=med_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_z = plotPrdSel1D(df_prdsel_z,x_=z,xlab="size (mm CW)",xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  df_prdsel_d = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=grd_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_d = plotPrdSel1D(df_prdsel_d,x_=d,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_t = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=grd_t,f=med_f,s=med_s));
+  ps_prdsel_t = plotPrdSel1D(df_prdsel_t,x_=t,xlab="temperature (deg C)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_f = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=med_t,f=grd_f,s=med_s));
+  ps_prdsel_f = plotPrdSel1D(df_prdsel_f,x_=f,xlab="-log2(phi)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_s = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=med_t,f=med_f,s=grd_s));
+  ps_prdsel_s = plotPrdSel1D(df_prdsel_s,x_=s,xlab="sorting coefficient",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_zd = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=grd_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_zd = plotPrdSel2D(df_prdsel_zd,x_=z,y=d,xlab="size (mm CW)",ylab="haul depth (m)",
+                              xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  rsltBM[["All1Da"]] = list(terms=list(lst=lst_prdtrms,plts=ps_prdtrms),
+                           sumry=list(lst=lst_sumry,txt=txt_sumry,gamchk=txt_gamchk,plts=ps_gamchk),
+                           sel1Ds=list(z=list(dfr=df_prdsel_z,plts=ps_prdsel_z)));
+  rm(mdl);
+  
+  cat("```\nSummary results for this model are:\n",txt_sumry,"\n```\n");
+  cat("```\nResults of checking the smooth term specifically are:\n",txt_gamchk,"\n```\n");
+```
+
+```{r}
+#| label: fig-MdlB-All1Da-Diags
+#| fig-cap: "Diagnostic plots for binomial model $ln(r_h,z) = \\alpha + s(z) + \\sum_i {\\beta_i \\cdot s_i(x_{i,h})}$ with k=10."
+  if (!isPDF) print(ps_gamchk) else {
+      lbl = getLabel();
+      cap = wtsQMD::getFigCaption();
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+```{r}
+#| label: fig-MdlB-All1Da-Sel
+#| fig-cap: 
+#| - "Estimated ln-scale selectvity (ratio) for binomial model $ln(R_h,z) = \\alpha + s(z) + \\sum_i {\\beta_i \\cdot s_i(x_{i,h})}$ with k=10."
+#| - "Estimated arithmetic-scale selectvity (ratio) for binomial model $ln(R_h,z) = \\alpha + s(z) + \\sum_i {\\beta_i \\cdot s_i(x_{i,h})}$ with k=10."
+  if (!isPDF) print(ps_prdsel_z[[1]]) else {
+      lbl = getLabel("1");
+      cap = wtsQMD::getFigCaption()[1];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+  if (!isPDF) print(ps_prdsel_z[[2]]) else {
+      lbl = getLabel("2");
+      cap = wtsQMD::getFigCaption()[2];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+```{r MGCV2-calcMdlB_All1Db,cache=TRUE}
+#---------mdlB_All1D: ALL 1-WAY TERMS----------------------------------
+#--ln(r) = ti(z) + ti(d) + ti(t) + ti(f) + ti(s)
+  k=20;
+  frmla = p~ti(z,bs="ts",k=k)+ti(d,bs="ts",k=k)+ti(t,bs="ts",k=k)+ti(f,bs="ts",k=k)+ti(s,bs="ts",k=k);
+  mdlB_All1Db   = estSelRatio(dfrDat,frmla,family=fam,select=TRUE);
+  rm(k,frmla);
+```
+
+```{r MGCV2-resMdlB_All1Db,dependson="MGCV2-calcMdlB_All1Db"}
+  mdl = mdlB_All1Db;
+  
+  lst_sumry   = summary(mdl$model);
+  txt_sumry   = paste0(capture.output(print(lst_sumry)),collapse="\n");
+  txt_gamchk  = wtsMGCV::gam.check(mdl$model);
+  ps_gamchk   = wtsMGCV::gam.check.plots(mdl$model);
+  lst_prdtrms = wtsMGCV::predSmoothTerms(mdl$model,grids);
+  ps_prdtrms  = wtsMGCV::plotSmoothTerms(lst_prdtrms,labs=lbls,dfrDat=dfrDat,ori="V",ci=0.80)
+  df_prdsel_z = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=med_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_z = plotPrdSel1D(df_prdsel_z,x_=z,xlab="size (mm CW)",xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  df_prdsel_d = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=grd_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_d = plotPrdSel1D(df_prdsel_d,x_=d,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_t = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=grd_t,f=med_f,s=med_s));
+  ps_prdsel_t = plotPrdSel1D(df_prdsel_t,x_=t,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_f = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=med_t,f=grd_f,s=med_s));
+  ps_prdsel_f = plotPrdSel1D(df_prdsel_f,x_=f,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_s = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=med_t,f=med_f,s=grd_s));
+  ps_prdsel_s = plotPrdSel1D(df_prdsel_s,x_=s,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  df_prdsel_zd = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=grd_d,t=med_t,f=med_f,s=med_s));
+  ps_prdsel_zd = plotPrdSel2D(df_prdsel_zd,x_=z,y=d,xlab="size (mm CW)",ylab="haul depth (m)",
+                              xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  rsltBM[["All1Db"]] = list(terms=list(lst=lst_prdtrms,plts=ps_prdtrms),
+                           sumry=list(lst=lst_sumry,txt=txt_sumry,gamchk=txt_gamchk,plts=ps_gamchk),
+                           sel1Ds=list(z=list(dfr=df_prdsel_z,plts=ps_prdsel_z)));
+  rm(mdl);
+  
+  cat("```\nSummary results for this model are:\n",txt_sumry,"\n```\n");
+  cat("```\nResults of checking the smooth term specifically are:\n",txt_gamchk,"\n```\n");
+```
+
+```{r}
+#| label: fig-MdlB-All1Db-Diags
+#| fig-cap: "Diagnostic plots for binomial model $ln(r_h,z) = \\alpha + s(z) + \\sum_i {\\beta_i \\cdot s_i(x_{i,h})}$ with k=20."
+  if (!isPDF) print(ps_gamchk) else {
+      lbl = getLabel();
+      cap = wtsQMD::getFigCaption();
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+```{r}
+#| label: fig-MdlB-All1Db-Sel
+#| fig-cap: 
+#| - "Estimated ln-scale selectvity (ratio) for binomial model $ln(r_h,z) = \\alpha + s(z) + \\sum_i {\\beta_i \\cdot s_i(x_{i,h})}$ with k=20."
+#| - "Estimated arithmetic-scale selectvity (ratio) for binomial model $ln(r_h,z) = \\alpha + s(z) + \\sum_i {\\beta_i \\cdot s_i(x_{i,h})}$ with k=20."
+  if (!isPDF) print(ps_prdsel_z[[1]]) else {
+      lbl = getLabel("1");
+      cap = wtsQMD::getFigCaption()[1];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+  if (!isPDF) print(ps_prdsel_z[[2]]) else {
+      lbl = getLabel("2");
+      cap = wtsQMD::getFigCaption()[2];
+      pth = file.path(dirFigs,basename(xfun::with_ext(knitr::fig_path(),def_ext)));
+      lstFigs[[lbl]] = list(lbl=lbl,cap=cap,pth=pth,wid=def_wid,dpi=def_dpi);
+      ggsave(pth,plot=ps_gamchk,width=def_wid,height=def_wid/def_asp,units="in",dpi=def_dpi);
+      rm(lbl,cap,pth);
+  }
+```
+
+##### Random effects models
+
+```{r MGCV2-calcMdlB_1DREZb,cache=TRUE}
+#----SIMPLE RE(h)----------------------------
+#--ln(r) = ti(z) + RE(h)
+  dfrDatRE = dfrDat;
+  dfrDatRE$h = as.factor(dfrDatRE$h);
+  k = 20;
+  frmla = p~ti(z,bs="ts",k=k) + s(h,bs="re");
+  mdlB_1DREZb = estSelRatio(dfrDatRE,frmla,family=fam,select=TRUE);
+```
+
+```{r MGCV2-resMdlB_1DREZb,dependson="MGCV2-calcMdlB_1DREZb"}
+  mdl = mdlB_1DREZb;
+  
+  lst_sumry   = summary(mdl$model);
+  txt_sumry   = paste0(capture.output(print(lst_sumry)),collapse="\n");
+  txt_gamchk  = wtsMGCV::gam.check(mdl$model);
+  ps_gamchk   = wtsMGCV::gam.check.plots(mdl$model);
+  # lst_prdtrms = wtsMGCV::predSmoothTerms(mdl$model,gridsre);
+  # ps_prdtrms  = wtsMGCV::plotSmoothTerms(lst_prdtrms,labs=lbls,dfrDat=dfrDatRE,ori="V",ci=0.80)
+  # df_prdsel_z = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=med_d,t=med_t,f=med_f,s=med_s));
+  # ps_prdsel_z = plotPrdSel1D(df_prdsel_z,x_=z,xlab="size (mm CW)",xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  # df_prdsel_d = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=grd_d,t=med_t,f=med_f,s=med_s));
+  # ps_prdsel_d = plotPrdSel1D(df_prdsel_d,x_=d,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  # df_prdsel_t = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=grd_t,f=med_f,s=med_s));
+  # ps_prdsel_t = plotPrdSel1D(df_prdsel_t,x_=t,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  # df_prdsel_f = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=med_t,f=grd_f,s=med_s));
+  # ps_prdsel_f = plotPrdSel1D(df_prdsel_f,x_=f,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  # df_prdsel_s = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=med_z,d=med_d,t=med_t,f=med_f,s=grd_s));
+  # ps_prdsel_s = plotPrdSel1D(df_prdsel_s,x_=s,xlab="depth (m)",xints=NULL,dfrDat=dfrDat,ci=0.80)
+  # df_prdsel_zd = calcPrdSel(mdl$model,wtsMGCV::createGridTbl(z=grd_z,d=grd_d,t=med_t,f=med_f,s=med_s));
+  # ps_prdsel_zd = plotPrdSel2D(df_prdsel_zd,x_=z,y=d,xlab="size (mm CW)",ylab="haul depth (m)",
+  #                             xints=c(25,180),dfrDat=dfrDat,ci=0.80)
+  # rsltBM[["All1Db"]] = list(terms=list(lst=lst_prdtrms,plts=ps_prdtrms),
+  #                          sumry=list(lst=lst_sumry,txt=txt_sumry,gamchk=txt_gamchk,plts=ps_gamchk),
+  #                          sel1Ds=list(z=list(dfr=df_prdsel_z,plts=ps_prdsel_z)));
+  # rm(mdl);
+  
+  cat("```\nSummary results for this model are:\n",txt_sumry,"\n```\n");
+  cat("```\nResults of checking the smooth term specifically are:\n",txt_gamchk,"\n```\n");
+  ps_gamchk;
+```
+
+##### All two-way interactions
+
+<!-- ```{r MGCV2-BinMod-All2Way} -->
+<!-- #---------ALL 2-WAY INTERACTIONS---------------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + ti(f) + ti(s) + -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s) +  -->
+<!-- #--        ti(d,t) + ti(d,f) + ti(d,s) +  -->
+<!-- #--        ti(t,f) + ti(t,s) +  -->
+<!-- #--        ti(f,s) -->
+<!-- frmla  = p~ti(z,bs="ts")+ti(d,bs="ts")+ti(t,bs="ts")+ti(f,bs="ts")+ti(s,bs="ts")+ -->
+<!--            ti(z,d,bs="ts")+ti(z,t,bs="ts")+ti(z,f,bs="ts")+ti(z,s,bs="ts")+ -->
+<!--            ti(d,t,bs="ts")+ti(d,f,bs="ts")+ti(d,s,bs="ts")+ -->
+<!--            ti(t,f,bs="ts")+ti(t,s,bs="ts")+ -->
+<!--            ti(f,s,bs="ts"); -->
+<!-- mdl  = estSelRatio(dfrDat,frmla,family=fam); -->
+<!-- mdlsB[["all 2-way interactions"]] = mdl; -->
+<!-- summary(mdl$model); -->
+<!-- #plot(mdl$model); -->
+<!-- rm(mdl); -->
+
+<!-- #---------SIGNIFICANT 2-WAY INTERACTIONS---------------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + MISSING[ti(f))] + ti(s) +  -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) + ti(z,s) +  -->
+<!-- #--        ti(d,t) + ti(d,f) + ti(d,s) + ti(t,f) + ti(t,s) + ti(f,s) -->
+<!-- frmla  = p~ti(z,bs="ts")+ti(d,bs="ts")+ti(s,bs="ts")+ -->
+<!--            ti(z,d,bs="ts")+ti(z,t,bs="ts")+ti(z,f,bs="ts")+ti(z,s,bs="ts")+ -->
+<!--            ti(d,t,bs="ts")+ti(d,f,bs="ts")+ti(d,s,bs="ts")+ -->
+<!--            ti(t,f,bs="ts")+ti(t,s,bs="ts")+ -->
+<!--            ti(f,s,bs="ts"); -->
+<!-- mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=NULL); -->
+<!-- mdlsB[["signif 2-way interactions"]] = mdl; -->
+<!-- summary(mdl$model); -->
+<!-- #plot(mdl$model); -->
+<!-- rm(mdl); -->
+
+<!-- #--------ALL 3-WAY INTERACTIONS-------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + ti(f) + ti(s) + -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s) +  -->
+<!-- #--        ti(d,t) + ti(d,f) + ti(d,s) +  -->
+<!-- #--        ti(t,f) + ti(t,s) +  -->
+<!-- #--        ti(f,s) + -->
+<!-- #--        ti(z,d,t) + (z,d,f) + (z,d,s) + (z,t,f) + (z,t,s) + (z,f,s) + -->
+<!-- #--        ti(d,t,f) + ti(d,t,s) + -->
+<!-- #--        ti(t,f,s) -->
+<!-- frmla  = p~ti(z,bs="ts")   + ti(d,bs="ts")   + ti(f,bs="ts")   + ti(s,bs="ts") + -->
+<!--            ti(z,d,bs="ts") + ti(z,t,bs="ts") + ti(z,f,bs="ts") + ti(z,s,bs="ts") + -->
+<!--            ti(d,t,bs="ts") + ti(d,f,bs="ts") + ti(d,s,bs="ts") + -->
+<!--            ti(t,f,bs="ts") + ti(t,s,bs="ts")+ -->
+<!--            ti(f,s,bs="ts") + -->
+<!--            ti(z,d,t,bs="ts") + ti(z,d,f,bs="ts") + ti(z,d,s,bs="ts") + -->
+<!--            ti(z,t,f,bs="ts") + ti(z,t,s,bs="ts") + -->
+<!--            ti(z,f,s,bs="ts") + -->
+<!--            ti(d,t,f,bs="ts") + ti(d,t,s,bs="ts") + ti(d,f,s,bs="ts") + ti(t,f,s,bs="ts"); -->
+<!-- mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=dfrNew,showPlots=TRUE); -->
+<!-- mdlsB[["all 3-way interactions"]] = mdl; -->
+<!-- summary(mdl$model); -->
+<!-- #plot(mdl$model); -->
+<!-- rm(mdl); -->
+
+<!-- #--------SIGNIFICANT 3-WAY INTERACTIONS-------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + ti(f) + ti(s) + -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) + MISSING[ti(z,s)] +  -->
+<!-- #--        ti(d,t) + ti(d,f) + ti(d,s) +  -->
+<!-- #--        ti(t,f) + MISSING[ti(t,s)] +  -->
+<!-- #--        MISSING[ti(f,s)] -->
+<!-- #--        ti(z,d,t) + (z,d,f) + (z,d,s) + (z,t,f) + (z,t,s) + (z,f,s) + -->
+<!-- #--        ti(d,t,f) + ti(d,t,s) + -->
+<!-- #--        ti(t,f,s) -->
+<!-- frmla  = p~ti(z,bs="ts")   + ti(d,bs="ts")   + ti(f,bs="ts")   + ti(s,bs="ts") + -->
+<!--            ti(z,d,bs="ts") + ti(z,t,bs="ts") + ti(z,f,bs="ts") + # ti(z,s,bs="ts") + -->
+<!--            ti(d,t,bs="ts") + ti(d,f,bs="ts") + ti(d,s,bs="ts") + -->
+<!--            ti(t,f,bs="ts") + # ti(t,s,bs="ts") + -->
+<!--            #ti(f,s,bs="ts") + -->
+<!--            ti(z,d,t,bs="ts") + ti(z,d,f,bs="ts") + ti(z,d,s,bs="ts") + -->
+<!--            ti(z,t,f,bs="ts") + ti(z,t,s,bs="ts") + -->
+<!--            ti(z,f,s,bs="ts") + -->
+<!--            ti(d,t,f,bs="ts") + ti(d,t,s,bs="ts") + ti(d,f,s,bs="ts") + ti(t,f,s,bs="ts"); -->
+<!-- mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=dfrNew,showPlots=TRUE); -->
+<!-- mdlsB[["signif 3-way interactions"]] = mdl; -->
+<!-- summary(mdl$model); -->
+<!-- #plot(mdl$model); -->
+<!-- rm(mdl); -->
+
+<!-- #--------2nd PASS SIGNIFICANT 3-WAY INTERACTIONS-------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + ti(f) + MISSING[ti(s)] + -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) + MISSING[ti(z,s)] +  -->
+<!-- #--        ti(d,t) + MISSING[ti(d,f)] + MISSING[ti(d,s)] +  -->
+<!-- #--        ti(t,f) + MISSING[ti(t,s)] +  -->
+<!-- #--        MISSING[ti(f,s)] -->
+<!-- frmla  = p~ti(z,bs="ts")   + ti(d,bs="ts")   + ti(f,bs="ts")   + # ti(s,bs="ts") + -->
+<!--            ti(z,d,bs="ts") + ti(z,t,bs="ts") + ti(z,f,bs="ts") + # ti(z,s,bs="ts") + -->
+<!--            ti(d,t,bs="ts") + # ti(d,f,bs="ts") + ti(d,s,bs="ts") + -->
+<!--            ti(t,f,bs="ts") + # ti(t,s,bs="ts") + -->
+<!--            #ti(f,s,bs="ts") + -->
+<!--            ti(z,d,t,bs="ts") + ti(z,d,f,bs="ts") + ti(z,d,s,bs="ts") + -->
+<!--            ti(z,t,f,bs="ts") + ti(z,t,s,bs="ts") + -->
+<!--            ti(z,f,s,bs="ts") + -->
+<!--            ti(d,t,f,bs="ts") + ti(d,t,s,bs="ts") + ti(d,f,s,bs="ts") + ti(t,f,s,bs="ts"); -->
+<!-- mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=dfrNew,showPlots=TRUE); -->
+<!-- mdlsB[["signif 3-way interactions: 2nd pass"]] = mdl; -->
+<!-- summary(mdl$model); -->
+<!-- #plot(mdl$model); -->
+<!-- rm(mdl); -->
+
+<!-- #----SIMPLE RE(h)---------------------------- -->
+<!-- #--ln(r) = ti(z) + RE(h) -->
+<!-- dfrDatRE = dfrDat; -->
+<!-- dfrDatRE$h = as.factor(dfrDatRE$h); -->
+<!-- frmla = p~ti(z,bs="ts",k=10) + s(h,bs="re"); -->
+<!-- mdl = gam(data=dfrDatRE,family=fam,formula=frmla,weights=n,select=TRUE,scale=0,offset=lnq); -->
+<!-- #mdl = estSelRatio(dfrDatRE,formula=frmla,family=fam,dfrNew=dfrNew,showPlots=TRUE); -->
+<!-- summary(mdl); -->
+<!-- #plot(mdl); -->
+<!-- mdlsB[["z + RE(h)"]] = mdl; -->
+<!-- rm(mdl); -->
+
+<!-- #---------ALL 2-WAY INTERACTIONS + RE(h) ---------------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + ti(f)) + ti(s) +  -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) + ti(z,s) +  -->
+<!-- #--        ti(d,t) + ti(d,f) + ti(d,s) + ti(t,f) + ti(t,s) + ti(f,s) + -->
+<!-- #--        RE(h) -->
+<!-- frmla  = p~ti(z,bs="ts")+ti(d,bs="ts")+ti(f,bs="ts")+ti(s,bs="ts")+ -->
+<!--            ti(z,d,bs="ts")+ti(z,t,bs="ts")+ti(z,f,bs="ts")+ti(z,s,bs="ts")+ -->
+<!--            ti(d,t,bs="ts")+ti(d,f,bs="ts")+ti(d,s,bs="ts")+ -->
+<!--            ti(t,f,bs="ts")+ti(t,s,bs="ts")+ -->
+<!--            ti(f,s,bs="ts") + -->
+<!--            s(h,bs="re"); -->
+<!-- #mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=NULL); -->
+<!-- mdl = gam(data=dfrDatRE,family=fam,formula=frmla,weights=n,select=TRUE,scale=0,offset=lnq,method="ML"); -->
+<!-- summary(mdl); -->
+<!-- #plot(mdl); -->
+<!-- mdlsB[["signif 2-way interactions + RE"]] = mdl; -->
+<!-- rm(mdl); -->
+
+<!-- #---------1st PASS SIGNIFICANT 2-WAY INTERACTIONS + RE(h) ---------------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + ti(f)) + MISSING[ti(s)] +  -->
+<!-- #--        ti(z,d) + ti(z,t) + ti(z,f) + ti(z,s) +  -->
+<!-- #--        MISSING[ti(d,t)] + MISSING[ti(d,f)] + ti(d,s) +  -->
+<!-- ##--       MISSING[ti(t,f)] + MISSING[ti(t,s)] + MISSING[ti(f,s)] + -->
+<!-- #--        RE(h) -->
+<!-- frmla  = p~ti(z,bs="ts")+ti(d,bs="ts")+ti(f,bs="ts")+ #ti(s,bs="ts")+ -->
+<!--            ti(z,d,bs="ts")+ti(z,t,bs="ts")+ti(z,f,bs="ts")+ti(z,s,bs="ts")+ -->
+<!--         #   ti(d,t,bs="ts")+ti(d,f,bs="ts")+ -->
+<!--            ti(d,s,bs="ts")+ -->
+<!--         #   ti(t,f,bs="ts")+ti(t,s,bs="ts")+ -->
+<!--         #   ti(f,s,bs="ts") + -->
+<!--            s(h,bs="re"); -->
+<!-- #mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=NULL); -->
+<!-- mdlREML.RE1 = gam(data=dfrDatRE,family=fam,formula=frmla,weights=n,select=TRUE,scale=0,offset=lnq,method="REML"); -->
+<!-- summary(mdl); -->
+<!-- #plot(mdl); -->
+<!-- mdlsB[["signif 2-way interactions + RE"]] = mdl; -->
+<!-- rm(mdl); -->
+
+<!-- #---------2nd PASS SIGNIFICANT 2-WAY INTERACTIONS + RE(h) ---------------------------------- -->
+<!-- #--ln(r) = ti(z) + ti(d) + ti(t) + MISSING[ti(f))] + MISSING[ti(s)] +  -->
+<!-- #--        ti(z,d) + MISSING[ti(z,t)] + MISSING[ti(z,f)] + ti(z,s) +  -->
+<!-- #--        MISSING[ti(d,t)] + MISSING[ti(d,f)] + ti(d,s) +  -->
+<!-- ##--       MISSING[ti(t,f)] + MISSING[ti(t,s)] + MISSING[ti(f,s)] + -->
+<!-- #--        RE(h) -->
+<!-- frmla  = p~ti(z,bs="ts")+ti(d,bs="ts")+#ti(f,bs="ts")+ti(s,bs="ts")+ -->
+<!--            ti(z,d,bs="ts")+#ti(z,t,bs="ts")+ti(z,f,bs="ts")+ -->
+<!--            ti(z,s,bs="ts")+ -->
+<!--         #   ti(d,t,bs="ts")+ti(d,f,bs="ts")+ -->
+<!--            ti(d,s,bs="ts")+ -->
+<!--         #   ti(t,f,bs="ts")+ti(t,s,bs="ts")+ -->
+<!--         #   ti(f,s,bs="ts") + -->
+<!--            s(h,bs="re"); -->
+<!-- #mdl  = estSelRatio(dfrDat,frmla,family=fam,dfrNew=NULL); -->
+<!-- mdlREML.RE2 = gam(data=dfrDatRE,family=fam,formula=frmla,weights=n,select=TRUE,scale=0,offset=lnq,method="REML"); -->
+<!-- summary(mdlREML.RE2); -->
+
+<!-- stats::AIC(mdlsB[[1]]$model,mdlsB[[2]]$model,mdlsB[[3]]$model,mdlsB[[4]]$model,mdlsB[[5]]$model,mdlsB[[6]]$model); -->
+<!-- stats::BIC(mdlsB[[1]]$model,mdlsB[[2]]$model,mdlsB[[3]]$model,mdlsB[[4]]$model,mdlsB[[5]]$model,mdlsB[[6]]$model); -->
+<!-- ``` -->
+
+<!-- ```{r MGCV2-SaveBinMods} -->
+<!-- mdlsBM[["za"]] = mdlB_1DZa; -->
+<!-- mdlsBM[["zb"]] = mdlB_1DZb; -->
+<!-- mdlsBM[["All1D"]] = mdlB_All1D; -->
+
+<!-- wtsUtilities::saveObj(mdlsBM,file.path(dirThs,paste0("rda_SelMods.Binom.males.modls.RData"))); -->
+<!-- wtsUtilities::saveObj(rsltBM,file.path(dirThs,paste0("rda_SelMods.Binom.males.rslts.RData"))); -->
+<!-- ``` -->
+
+<!-- # Chapter 1 {#sec-Chap1} -->
+<!--```{r main_Chap1, child=file.path(child_path$peek(),"q01_Chap1.qmd"),eval=TRUE}-->
+<!--````-->
+
+<!-- # Chapter 2 {#sec-Chap2} -->
+<!--```{r main_Chap2, child=file.path(child_path$peek(),"q02_Chap2.qmd"),eval=TRUE}-->
+<!--````-->
+
+<!-- references -->
+```{r refs_MGCV2,eval=!knitr::opts_knit$get("child"),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_MGCV2
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_MGCV2
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

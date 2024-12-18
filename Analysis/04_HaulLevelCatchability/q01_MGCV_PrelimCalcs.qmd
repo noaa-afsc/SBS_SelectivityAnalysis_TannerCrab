@@ -1,0 +1,294 @@
+---
+title: "Tanner crab SBS studies: Preliminary Haul-level Calculations"
+author:
+- name: William T. Stockhausen
+  affiliations:
+    - id: afsc-refm
+      name: "Alaska Fisheries Science Center"
+      department: "Resource Ecology and Fisheries Management"
+      address: 
+        - "7600 Sand Point Way N.E."
+        - "Seattle, Washington 98115-6349"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 6.5
+    fig-asp: 0.6
+    fig-dpi: 100
+    embed-resources: true
+    include-in-header: 
+      - '`r system.file("files/in-line_math_mode.html",package="wtsQMD")`'
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    fig-width: 6.5
+    fig-asp: 0.6
+    keep-tex: false
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
+echo: false
+warning: false
+results: 'hide'
+keep-md: false
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: MGCV1_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_MGCV1
+#| results: 'asis'
+  require(ggplot2);
+  require(kableExtra);
+  require(tables);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) cat("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/04_HaulLevelCatchability");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s",mode="list")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+  ##--
+```
+
+## "Raw" haul-level data
+
+```{r MGCV1-GetHaulLevelProps"}
+  dfrPropsAllYears   = wtsUtilities::getObj(file.path(dirThs,"rda_Step1b_dfrPropsAllSBSYears.RData"));
+  dfrMnPropsAllYears = wtsUtilities::getObj(file.path(dirThs,"rda_Step1c_dfrMnPropsAllSBSYears.RData"))
+```
+
+```{r MGCV1-DefFcns-PlotProps}
+plotProps<-function(x_){
+  tmp0<-dfrPropsAllYears[dfrPropsAllYears$SEX==x_,];
+  tmp1<-dfrMnPropsAllYears[dfrMnPropsAllYears$SEX==x_,];
+  p1 <- ggplot(data=tmp0,mapping=aes(x=SIZE,y=propNMFS,size=numTot,colour=YEAR)) + 
+          geom_point(alpha=0.2,stat="identity",position=position_jitter(width=2.0)) + scale_size_area() + 
+          geom_line(data=tmp1,mapping=aes(x=SIZE,y=mnCPUE_Prop,colour=YEAR),
+                    alpha=1.0,inherit.aes=FALSE,linetype=2) + 
+          geom_line(data=tmp1,mapping=aes(x=SIZE,y=mnPropNMFS,colour=YEAR),
+                    alpha=1.0,inherit.aes=FALSE,linetype=1) + 
+          facet_grid(rows=YEAR~.) + 
+          labs(x="size (mm CW)",y="proportion (NMFS/[NMFS+BSFRF])",
+               colour="year",size="total\nnumber");
+  
+  p2 <- ggplot(data=tmp0,mapping=aes(x=SIZE,y=obsLnR,size=numTot,colour=YEAR)) +
+          geom_point(alpha=0.2,stat="identity",position=position_jitter(width=2.0)) + scale_size_area()  +
+          geom_line(data=tmp1,mapping=aes(x=SIZE,y=mnCPUE_lnR,colour=YEAR),
+                    alpha=1.0,inherit.aes=FALSE,linetype=2) + 
+          facet_grid(rows=YEAR~.) + 
+          labs(x="size (mm CW)",y="ln(R) = logit(NMFS/[NMFS+BSFRF])-log(q)",
+               colour="year",size="total\nnumber");
+  
+  lgd = cowplot::get_legend(p1)
+  pg = cowplot:::plot_grid(p1 + theme(legend.position="none"),
+                           p2 + theme(legend.position="none"),
+                           lgd,nrow=1,rel_widths=c(6,6,1));
+  return(pg);
+}
+```
+
+```{r}
+#| label: fig_MGCV1-ResultsM
+#| results: asis
+#| fig-cap: "Left column: ratio of haul-level NMFS catch numbers to total catch numbers for males, by size bin and paired haul; solid line: haul-level mean; dashed line: survey-level proportion based on CPUE. Right column: corresponding ln(R) values; dashed line: ln(R) using survey-level CPUE proportion. Symbol size indicates the total number of males caught, by size and paired haul; color inidicates SBS study year."
+#| fig-asp: 1.2
+  pg = plotProps("MALE");
+  lbl = wtsQMD::getLabel();
+  pth = wtsQMD::getFigFN();
+  cap = wtsQMD::getFigCaption();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+```{r}
+#| label: fig_MGCV1-ResultsF
+#| results: asis
+#| fig-cap: "Left column: ratio of haul-level NMFS catch numbers to total catch numbers for females, by size bin and paired haul; solid line: haul-level mean; dashed line: survey-level proportion based on CPUE. Right column: corresponding ln(R) values; dashed line: ln(R) using survey-level CPUE proportion. Symbol size indicates the total number of females caught, by size and paired haul; color inidicates SBS study year."
+#| fig-asp: 1.2
+  pg = plotProps("FEMALE");
+  lbl = wtsQMD::getLabel();
+  pth = wtsQMD::getFigFN();
+  cap = wtsQMD::getFigCaption();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(pg,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+## Censored haul-level data
+
+```{r MGCV1-GetTrimmedData}
+lstTrimmedData = wtsUtilities::getObj(file.path(dirThs,"rda_Step2_TrimmedDataList.RData"));
+lstTrimmedASRs = lstTrimmedData$lstTrimmedASRs;
+ASRs     = lstTrimmedASRs$ASRs;
+nrw_orig = lstTrimmedASRs$nrw_orig;
+nrw_edit = lstTrimmedASRs$nrw_edit;
+nrw_drop = lstTrimmedASRs$nrw_drop;
+lstTrimmedFinal = lstTrimmedData$lstTrimmedFinal;
+n_min = lstTrimmedFinal$n_min;
+```
+
+For SBS paired hauls, the ratio of the NMFS area swept to the BSFRF area swept was expected to be ~`r ASRs[2]`. Area-swept ratios outside the range {`r ASRs[1]`, `r ASRs[3]`} were regarded as indicative of a problem with one or both of the hauls and the associated paired hauls were dropped from further analysis ([@fig-MGCV1-ASRs1]). Applying this criterion resulted in dropping `r nrw_drop` paired hauls and `r nrw_orig-nrw_edit` size composition records (Figures [-@fig-MGCV1-ASRs2] and [-@fig-MGCV1-ASRs3]). An additional `r nrow(lstTrimmedASRs$dfrDat)-nrow(lstTrimmedFinal$dfrDat)` size composition records were dropped after requiring that each reflected a minimum of `r n_min` sampled individuals. This resulted in a total of `r nrow(lstTrimmedFinal$dfrDat)` used in the haul-level selectivity analyses.
+
+```{r}
+#| label: fig_MGCV1-ASRs1
+#| results: asis
+  lbl = wtsQMD::getLabel();
+  cap = paste0("Histogram of paired haul area-swept ratios. ",
+               "Paired hauls with area swept ratios outside the ",
+               "outer dotted lines were dropped from further analysis. ",
+               "Vertical dashed lines: left: minimum acceptable ratio, ",
+               "center: expected ratio, right: maximum acceptable ratio.");
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lstTrimmedASRs$ps$p1,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+```{r}
+#| label: fig_MGCV1-ASRs2
+#| results: asis
+  lbl = wtsQMD::getLabel();
+  cap = paste0("Haul-level ln(R) values; symbol size indicates number sampled. ",
+               "Colour indicates area swept ratio. ",
+               "Upper plot: females; lower plot: males.");
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lstTrimmedASRs$ps$p2,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+```{r}
+#| label: fig_MGCV1-ASRs3
+#| results: asis
+  lbl = wtsQMD::getLabel();
+  cap = paste0("Haul-level ln(R) values; colours indicate SBS study years. ",
+               "Black symbols indicate values with area swept ratio < ",ASRs[1],
+               " or  > ",ASRs[3]," which will be dropped. ",
+               "Upper plot: females; lower plot: males.");
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lstTrimmedASRs$ps$p3,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+```{r}
+#| label: fig_MGCV1-MinNs1
+#| results: asis
+  lbl = wtsQMD::getLabel();
+  cap = paste0("Haul-level ln(R) values; colours indicate SBS study years; ",
+               "symbol size indicates number of crab sampled. ",
+               "Black symbols indicate values with < ",n_min," individuals in the size bin. ",
+               "Upper plot: females; lower plot: males.");
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lstTrimmedFinal$ps$p1,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+```{r}
+#| label: fig_MGCV1-MinNs2
+#| results: asis
+  lbl = wtsQMD::getLabel();
+  cap = paste0("Haul-level ln(R) values after applying minimum catch of ",n_min,
+               " individuals in size bin. ","Upper plot: females; lower plot: males.");
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(lstTrimmedFinal$ps$p2,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+<!-- # Chapter 1 {#sec-Chap1} -->
+<!-- ```{r main_Chap1, child=file.path(child_path$peek(),"q01_Chap1.qmd"),eval=TRUE} -->
+<!-- ``` -->
+
+<!-- references (NOTE: delete '&&FALSE' from `eval` when ref.s are added to this qmd)-->
+```{r refs_MGCV1,eval=(!knitr::opts_knit$get("child")&&FALSE),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_MGCV1
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_MGCV1
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

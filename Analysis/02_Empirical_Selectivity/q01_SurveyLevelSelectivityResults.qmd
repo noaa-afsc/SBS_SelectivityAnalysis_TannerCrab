@@ -564,7 +564,7 @@ The time-invariant estimates of catchability, $S(z)$ ($= exp(\alpha+s(z))$, wher
 ```
 
 ```{r EmpSel_CleanupM}
-  rm(dfrESsp,dfrESsp1);#--keep model results for males
+  rm(dfrESsp,dfrESsp1);
 ```
 
 ### Females
@@ -846,9 +846,6 @@ The time-invariant estimates of catchability, $S(z)$ ($= exp(\alpha+s(z))$, wher
   rm(prd3f,p1,dfr,dfrPRs,p2,pg);
 ```
 
-```{r fig_EmpSel_BestEsts}
-```
-
 ```{r EmpSel_CleanupF}
   rm(dfrESsp,dfrESsp1);
 ```
@@ -859,7 +856,7 @@ Based on the summary model statistics (Tables [-@tbl-EmpSel-MdlsSmryM] and [-@tb
 
 ```{r fig_EmpSel-BestFcns}
 #| results: asis
-#| fig-cap: "Comparison of the estimated time-invariant estimated selectivity, $S(z)$, from the model regarded as the most satisfactory for each sex (Model 3, in both cases)."
+#| fig-cap: "Estimated selectivity for arbitrary years, $S(z)$, from the model regarded as the most satisfactory for each sex (Model 3, in both cases)."
 #| fig-width: 9
 #| fig-asp: 0.6
   dfr = dplyr::bind_rows(
@@ -868,7 +865,7 @@ Based on the summary model statistics (Tables [-@tbl-EmpSel-MdlsSmryM] and [-@tb
   )
   p1 = ggplot(dfr,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=sex,fill=sex)) +
         geom_line() + geom_ribbon(alpha=0.3) +
-        labs(x="size (mm CW)",y="estimated time-invariant selectivity");
+        labs(x="size (mm CW)",y="estimated selectivity");
   lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="L"));
   rm(dfr,p1);
 ```

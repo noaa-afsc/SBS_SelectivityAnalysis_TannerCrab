@@ -83,26 +83,6 @@ calcCrabAbundance<-function(){
   p = plotTotRawZCs(dfrZCs_RawTot,"FEMALE",total,"female numbers");
   out = c(out,list(figRawNumbersFemales=list(p=p,cap=cap)));
   
-#| label: fig-PctNon0sCPUEMales
-  cap = "The percentage of non-zero catch hauls for male CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment."
-  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,x=='male'));
-  out = c(out,list(figPctNon0sCPUEMales=list(p=p,cap=cap)));
-
-#| label: fig-PctNon0sCPUEFemales
-  cap = "The percentage of non-zero catch hauls for female CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment."
-  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,x=='female'));
-  out = c(out,list(figPctNon0sCPUEFemales=list(p=p,cap=cap)));
-
-#| label: fig-PctNon0sCPUEBSFRF
-  cap = "The percentage of non-zero catch hauls for the BSFRF gear in the SBS studies, by 5-mm size bin and sex. The dotted vertical line marks the lower limit of the size bins used in the assessment."
-  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,fleet=='BSFRF'),factor=x);
-  out = c(out,list(figPctNon0sCPUEBSFRF=list(p=p,cap=cap)));
-
-#| label: fig-PctNon0sCPUENMFS
-  cap = "The percentage of non-zero catch hauls for the NMFS gear in the SBS studies, by 5-mm size bin and sex. The dotted vertical line marks the lower limit of the size bins used in the assessment."
-  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,fleet=='NMFS'),factor=x);
-  out = c(out,list(figPctNon0sCPUENMFS=list(p=p,cap=cap)));
-
 #--calculate CPUE by haul----
   dfrCPUE = calcCPUEs(lst,
                       bySex=TRUE,
@@ -128,6 +108,26 @@ calcCrabAbundance<-function(){
                  dplyr::ungroup() |> 
                  dplyr::filter(mn>0);
   out = c(out,list(dfrCPUE=dfrCPUE,avgASw=avgASw,dfrStatsCPUE=dfrStatsCPUE));
+
+#| label: fig-PctNon0sCPUEMales
+  cap = "The percentage of non-zero catch hauls for male CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,x=='male'));
+  out = c(out,list(figPctNon0sCPUEMales=list(p=p,cap=cap)));
+
+#| label: fig-PctNon0sCPUEFemales
+  cap = "The percentage of non-zero catch hauls for female CPUE in the SBS studies, by 5-mm size bin and gear type. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,x=='female'));
+  out = c(out,list(figPctNon0sCPUEFemales=list(p=p,cap=cap)));
+
+#| label: fig-PctNon0sCPUEBSFRF
+  cap = "The percentage of non-zero catch hauls for the BSFRF gear in the SBS studies, by 5-mm size bin and sex. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,fleet=='BSFRF'),factor=x);
+  out = c(out,list(figPctNon0sCPUEBSFRF=list(p=p,cap=cap)));
+
+#| label: fig-PctNon0sCPUENMFS
+  cap = "The percentage of non-zero catch hauls for the NMFS gear in the SBS studies, by 5-mm size bin and sex. The dotted vertical line marks the lower limit of the size bins used in the assessment."
+  p = plotPctNon0sCPUE(dplyr::filter(dfrStatsCPUE,fleet=='NMFS'),factor=x);
+  out = c(out,list(figPctNon0sCPUENMFS=list(p=p,cap=cap)));
 
 #| label: fig-StatsCPUEMales
   cap = "Male CPUE in the SBS studies, by 5-mm size bin and gear type. Solid lines: mean; shaded area: empirical 90% CI. The dotted vertical line marks the lower limit of the size bins used in the assessment. The y-axis is on a log scale to facilitate comparison across the range of values."
