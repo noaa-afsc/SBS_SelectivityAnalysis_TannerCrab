@@ -1,4 +1,4 @@
-#--fit various models for ln(r) using mgcv to fit GAMs for males using the BINOMIAL distribution----
+#--fit various models for ln(r) using mgcv to fit GAMs for FEMALES using the BINOMIAL distribution----
 require(DHARMa);
 require(dplyr);
 require(ggplot2);
@@ -7,11 +7,11 @@ require(mgcv);
 
 #--get censored data and prediction grids----
 dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
-lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3a.CensoredDataAndGridsList.Males.RData"));
+lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3a.CensoredDataAndGridsList.Females.RData"));
 
 #--remove zeros, infs, questionable observed Rs----
 #dfrDatp   = lst$dfrDat |> dplyr::filter(obsR<10, is.finite(lnR),between(z,15,150));
-dfrDatp   = lst$dfrDat |> dplyr::filter(between(z,15,150));
+dfrDatp   = lst$dfrDat |> dplyr::filter(between(z,15,130));
 
 #--BINOMIAL regression  models for lnR----
 famB = stats::binomial(link="logit");
@@ -19,7 +19,7 @@ famB = stats::binomial(link="logit");
   #--ln(r) = ti(z) + 
  #--         ti(d) + ti(t) + ti(f) + ti(s) +
   #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
-  ks=c(20,10);
+  ks=c(10,8);
   k1 = ks[1]; k2 = ks[2];
   frmla  = p~ti(z,bs="ts",k=k1)   +
              ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
@@ -55,7 +55,7 @@ if (FALSE){
                  debug=TRUE);
   wtsUtilities::saveObj(dfrCrsVal,file.path(dirThs,"rda_Step3b1.BinomialModels_CrsVal.RData"));
 }
-
+  
 if (FALSE){
   if (!exists("dfrCrsVal")) dfrCrsVal = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b1.BinomialModels_CrsVal.RData"));
   #--keep scores, drop nested lists
@@ -96,7 +96,7 @@ if (FALSE){
          wtsPlots::getStdTheme() + 
          theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
                axis.title.x=element_blank());
-  ggsave("pltBestModels.Males.Binomial.pdf",plot=p1,width=6.5,height=4)
+  ggsave("pltBestModels.Females.Binomial.pdf",plot=p1,width=6.5,height=4)
   
   #--evaluate best model
   best_smth = "ti(z)+ti(t)+ti(f)";#--user must determine this based on results above
@@ -108,6 +108,6 @@ if (FALSE){
   DHARMa::plotResiduals(simResids);
   plts = getModelPlots(best_mdl);
   
-  wtsUtilities::saveObj(best_mdl,    file.path(dirThs,"rda_Step3b3.BinomialModels_BestModel.RData"));
+  wtsUtilities::saveObj(best_mdl,file.path(dirThs,"rda_Step3b3.BinomialModels_BestModel.RData"));
 }
 

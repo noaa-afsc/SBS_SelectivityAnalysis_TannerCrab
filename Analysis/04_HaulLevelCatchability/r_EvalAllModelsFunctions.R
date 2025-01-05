@@ -167,24 +167,16 @@ evalAllModels<-function(mdl,
   mdlbss    = getSmoothsMarginalBasisTypes(mdl_frmla);#--basis types for smooths
   #--column names for training dataset
   #----need to get column name for offsets and weights from the model call
-  col_offsets = as.character(mdl$cl["offset"]);  if (col_offsets=="NULL") col_offsets = NULL;
-  col_weights = as.character(mdl$cl["weights"]); if (col_weights=="NULL") col_weights = NULL;
+  col_offsets = as.character(mdl$cl["offset"]);  #if (col_offsets=="NULL") col_offsets = NULL;
+  col_weights = as.character(mdl$cl["weights"]); #if (col_weights=="NULL") col_weights = NULL;
   sym_col_offsets = sym(col_offsets);
   sym_col_weights = sym(col_weights);
   cat("offsets, weights in columns",col_offsets,col_weights,"\n");
   #--gam options (same as "full" model)
-  #str_method  = eval(parse(text=as.character(mdl$cl["method"])));  if (str_method=="NULL")  str_method  = NULL;
   str_method = mdl_env$str_method;
   cat("str_method =",str_method,"\n")
-  #str_select  = eval(parse(text=as.character(mdl$cl["select"])));  lgl_select = ifelse(str_select=="NULL",FALSE,as.logical(str_select));
   lgl_select = mdl_env$lgl_select;
     cat("lgl_select =",lgl_select,"\n")
-  
-  # #--set default values for offset_, weights_ for training dataset as necessary
-  # if (is.null(offset_)) 
-  #   offset_ = rep(0,nrow(mdldata));
-  # if (is.null(weights_)) 
-  #   weights_ = rep(1,nrow(mdldata));
   
   #--get column names for testing dataset
   col_respons = resp;#--same as for training dataset
@@ -216,7 +208,7 @@ evalAllModels<-function(mdl,
   lstAll<-foreach(i = icmbs,
                  .errorhandling="remove",
                  .inorder=debug,
-                 .export=c("createModelFormula","calcLogLike.binomial"),
+                 .export=c("createModelFormula","calcLogLike.binomial","calcLogLike.tw"),
                  .packages=c("mgcv","tibble")) %dopar% {
     if (doParallel&&(log||debug)) sink(logfile, append=TRUE);
     cat("\n\nicmbs for next model:",paste(as.vector(t(cmbs[i,])),collapse=" "),"\n");
@@ -228,8 +220,6 @@ evalAllModels<-function(mdl,
                                 mdlbss[idx],
                                 ks,
                                 env=environment());
-    # if (log||debug) cat(paste("offset_:", paste(offset_,collapse=" "), "\n"));
-    # if (log||debug) cat(paste("weights_:",paste(weights_,collapse=" "),"\n"));
     #--fit candidate model with training dataset
     mdlres = NULL;
     tryCatch(
@@ -276,6 +266,13 @@ evalAllModels<-function(mdl,
         obs_rsp = dfrTrain[[col_respons]];
         if (mdlres$family$family=="binomial"){
           llsTrn = calcLogLike.binomial(obs_rsp,dfrTrain[[col_weights]],prd_rsp,family=mdlres$family,offsets=dfrTrain[[col_offsets]]);
+        } else if (stringr::str_starts(mdlres$family$family,"Tweedie")){
+          if (debug) cat("calculating llsTrn for Tweedie family. scale = ",mdlres$scale,"\n")
+          llsTrn = calcLogLike.tw(obs_rsp,prd_rsp,family=mdlres$family,rho=log(mdlres$scale),offsets=dfrTrain[[col_offsets]]);
+          if (debug) cat("calculated llsTrn for Tweedie family\n")
+        } else {
+          cat( paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized.\n"));
+          stop(paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized."));
         }
         llMdl  = as.numeric(logLik(mdlres));
         llTrn  = sum(llsTrn);
@@ -356,6 +353,13 @@ evalAllModels<-function(mdl,
         obs_rsp = dfrTest[[col_respons]];
         if (mdlres$family$family=="binomial"){
           llsTst = calcLogLike.binomial(obs_rsp,dfrTest[[col_weights]],prd_rsp,family=mdlres$family,offsets=dfrTest[[col_offsets]]);
+        } else if (stringr::str_starts(mdlres$family$family,"Tweedie")){
+          if (debug) cat("calculating llsTst for Tweedie family\n")
+          llsTst = calcLogLike.tw(obs_rsp,prd_rsp,family=mdlres$family,rho=log(mdlres$scale),offsets=dfrTest[[col_offsets]]);
+          if (debug) cat("calculated llsTst for Tweedie family\n")
+        } else {
+          cat( paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized.\n"));
+          stop(paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized."));
         }
         llTst  = sum(llsTst);
         scrTst = llTst/length(prd_rsp);

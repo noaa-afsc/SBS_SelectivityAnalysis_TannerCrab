@@ -72,7 +72,8 @@ if (FALSE){
 #' @param mdl - (possibly unevaluated) model with all terms 
 #' @param ks - vector with max k-values for smooths (length = max dimension of smooths)
 #' @param dfrData - complete dataframe
-#' @param link - column name in dfrTest to use as values for testing predicting capability
+#' @param col_link - column name in dfrTest to use as values for testing predicting capability
+#' @param startFold - fold to start with (default: 1; >1 to resume if analysis was prematurely interrupted were)
 #' @param numFolds - number of cross validation folds to evaluate
 #' @param selectBy - method to select testing data within a fold ("by_haul" or "by_obs")
 #' @param concrv_opt - option (1=worst, 2=observed) for type to use for concurvity criterion
@@ -83,12 +84,13 @@ if (FALSE){
 #' @param log - flag to write to log 
 #' @param debug - flag to print 
 #' 
-#' @return unordered dataframe 
+#' @return NULL (invisibly). Results are saved as "fold_`fld`.RData" in the working directory. 
 #' 
 runCrossValidation<-function(mdl,
                              ks,
                              dfrData,
                              col_link="lnR",
+                             startFold=1,
                              numFolds=10,
                              selectBy="by_haul",
                              concrv_opt=2,
@@ -130,8 +132,17 @@ runCrossValidation<-function(mdl,
   }
   
   #--column names for training datasets
-  col_offsets = as.character(mdl$cl["offset"]);  if (col_offsets=="NULL") col_offsets = NULL;
-  col_weights = as.character(mdl$cl["weights"]); if (col_weights=="NULL") col_weights = NULL;
+  nothing = NULL;
+  col_offsets = as.character(mdl$cl["offset"]);  
+  if (col_offsets=="NULL") {  #--NULL doesn't work as a symbol
+    col_offsets = "default_offsets";
+    dfrData[[col_offsets]] = 0;
+  }
+  col_weights = as.character(mdl$cl["weights"]); 
+  if (col_weights=="NULL") {  #--NULL doesn't work as a symbol
+    col_weights = "default_weights";
+    dfrData[[col_weights]] = 1;
+  }
   sym_col_offsets = sym(col_offsets);
   sym_col_weights = sym(col_weights);
   #--gam options
@@ -140,7 +151,7 @@ runCrossValidation<-function(mdl,
   
   #--run model selection across numFolds 
   lstRes = list();
-  for (fld in 1:numFolds){
+  for (fld in startFold:numFolds){
     #--testing: fld = 1;
     cat("Running fold",fld,"\n");
     if (selectBy=="hauls"){
@@ -185,81 +196,14 @@ runCrossValidation<-function(mdl,
                            max_ncmbs=max_ncmbs,
                            icmbs=icmbs,
                            logfile=logfile,
-                           debug=debug);
-    lstRes[[fld]] = dfrAll |> dplyr::mutate(fold=fld,.before=1);
+                           debug=debug) |> 
+              dplyr::mutate(fold=fld,.before=1);
+    wtsUtilities::saveObj(dfrAll,paste0("fold_",fld,".RData"));
+    rm(dfrAll);
   }
-  dfrRes = dplyr::bind_rows(lstRes);
-  return(dfrRes);
+  return(invisible(NULL));
 }
 
-#--plot model results------------------------------------------------------
-plt1D<-function(sme,prs,x_,y_){
-  require(rlang);
-  vx=sym(x_); vy=sym(y_);
-  gratia::draw(sme) + 
-        geom_point(aes(x=!!vx,y=!!vy),prs,alpha=0.2);
-}
-plt2D<-function(sme,prs,x_,y_,z_){
-  require(rlang);
-  vx=sym(x_); vy=sym(y_); vz=sym(z_);
-  gratia::draw(sme) + 
-        geom_point(aes(x=!!vx,y=!!vy,size=!!vz),prs,alpha=0.2) + 
-        scale_size_area()
-}
-getModelPlots<-function(mdl,
-                        subs = c("z"="size (mm CW)",
-                                 "d"="depth (m)",
-                                 "t"="temperature (deg C)",
-                                 "f"="phi",
-                                 "s"="sorting coefficient")){
-  resp = as.character(formula(mdl))[2];     #--model response
-  fmly = family(mdl);
-  nsms  = n_smooths(mdl);
-  smths = smooths(mdl);
-  smtsl = smooth_terms(mdl);
-  dfrDatp = mdl$model;
-  allPlts = list();
-  for (ism in 1:nsms){
-    #--testing: ism = 1;
-    smth = smths[ism];
-    smts = smtsl[[ism]];
-    sme = gratia::smooth_estimates(mdl,select=smth,
-                                   unconditional=TRUE,
-                                   overall_uncertainty=TRUE);
-    sme= add_confint(sme,0.80);
-    prs = add_partial_residuals(dfrDatp,mdl,select=smth);
-    plts = list();
-    if (length(smts)==1){
-      p = plt1D(sme,prs,smts[1],smth) + 
-                    labs(x=subs[smts[1]],y="Partial effect on link scale");
-      cap = paste0("Partial effect of ",smts[1]," for the link-scale response ",
-                    resp," assuming a ",fmly$family," error distribution and a ",
-                    fmly$link," link.")
-      plts[[1]] = list(p=p,cap=cap);
-      if (smth=="ti(z)") {
-        p = gratia::draw(transform_fun(sme,fun=exp,constant=model_constant(mdl))) + 
-                      labs(x=subs[smts[1]],y="Base Selectivity");
-        cap = paste0("Estimated base selectivity (independent of covariate effects).");
-        plts[[2]] = list(p=p,cap=cap);
-      } else {
-        # plts[[2]] = gratia::draw(transform_fun(sme,fun=inv_link(mdl))) + 
-        #               labs(x=subs[smts[1]],y="Response Scale Effect");
-        # cap = paste0("Estimated selectivity (independent of covariate effects.");
-        # plts[[2]] = list(p=p,cap=cap);
-      }
-    } else if (length(smts==2)){
-      p = plt2D(sme,prs,smts[1],smts[2],smth) + 
-                    labs(x=subs[smts[1]],y=subs[smts[2]],size="Partial\nresiduals");
-      cap = paste0("Partial effect of ",smts[1]," and ",smths[2]," for the link-scale response ",
-                    resp," assuming a ",fmly$family," error distribution and a ",
-                    fmly$link," link.");
-      plts[[1]] = list(p=p,cap=cap);
-    }
-    allPlts[[smth]] = list(plts);
-    rm(plts);
-  }
-  return(allPlts)
-}
 
 
 
