@@ -82,7 +82,7 @@ plotModelSmooths<-function(mdl,
       if (smth %in% c("ti(z)","s(z)")) {
         p = gratia::draw(transform_fun(sme,fun=exp,constant=model_constant(mdl))) + 
                       labs(x=subs[smts[1]],y="Base Selectivity");
-        cap = paste0("Estimated base selectivity (independent of covariate effects).");
+        cap = paste0("Estimated base selectivity (excluding covariate effects).");
         plts[[2]] = list(p=p,cap=cap);
       } else {
         # plts[[2]] = gratia::draw(transform_fun(sme,fun=inv_link(mdl))) + 

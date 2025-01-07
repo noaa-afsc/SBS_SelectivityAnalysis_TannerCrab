@@ -4,7 +4,7 @@
 #' @description Function to predict values based on a model. 
 #' @param mdl - fitted gam model
 #' @param trms - terms to include in prediction ("all" includes all terms, including the intercept)
-#' @param lst - list of covariate variables to include in grid 
+#' @param lst - list of covariate variables to include in grid(or dataframe)
 #' @param type - type of prediction (see [mgcv::predict.gam()] for options)
 #' @param keep - if not NULL (default), a character vector of covariates to keep for plots 
 #' @param p - value indicating size for two-sided confidence intervals (ci = 100*(1-2*p)) 
@@ -16,7 +16,11 @@
 #' @export
 #' 
 prdMod<-function(mdl,trms,lst,type="link",keep=NULL,p=0.05){
-  dfr = wtsMGCV::createGridTbl(lst);
+  if (!inherits(lst,"data.frame")){
+    dfr = wtsMGCV::createGridTbl(lst);
+  } else {
+    dfr = lst;
+  }
   if (any(trms=="all")){
     #--add intercept and all smooth terms
     trmsp = "(Intercept)";
@@ -44,8 +48,8 @@ prdMod<-function(mdl,trms,lst,type="link",keep=NULL,p=0.05){
   return(prd);
 }
 #' 
-#' @title Plot predicted values by size, colored by year 
-#' @description Function to plot predicted values by size, colored by year. 
+#' @title Plot predicted values by size, colored by model 
+#' @description Function to plot predicted values by size, colored by model. 
 #' @param ylims - y-axis limits 
 #' @return ggplot2 plot object.
 #' @import ggplot2 
@@ -53,7 +57,7 @@ prdMod<-function(mdl,trms,lst,type="link",keep=NULL,p=0.05){
 #' 
 plotMod<-function(tmp,ylims=c(0,1.5)){
   if (all(is.na(tmp$y))) tmp$y = "all";
-  p = ggplot(tmp,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=y,fill=y));
+  p = ggplot(tmp,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=terms,fill=terms));
   if ("n" %in% names(tmp)){
     p = p + geom_point(aes(size=n)) + scale_size_area() + 
             geom_line();
@@ -61,10 +65,10 @@ plotMod<-function(tmp,ylims=c(0,1.5)){
   p = p + 
          geom_ribbon(alpha=0.3) + 
          geom_line() + 
-         geom_hline(yintercept=0.5,linetype=3) + 
+         geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
          scale_y_continuous(limits=ylims,oob=scales::squish) + 
-         labs(x="size (mm CW)",y="empirical\nselectivity",
-              colour="study\nyear",fill="study\nyear",size="crab\nsampled") + 
+         labs(x="size (mm CW)",y="estimated selectivity",
+              colour="terms",fill="terms",size="crab\nsampled") + 
          wtsPlots::getStdTheme() + 
          theme(legend.position="inside",
                legend.position.inside=c(0.01,0.99),
