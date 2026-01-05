@@ -164,10 +164,12 @@ params:
       for (trm in trms) trmsp = c(trmsp,trm);
       trms = trmsp;
     }
+    #--calculate predictions on link scale to get correct lci/uci
     prd = dplyr::bind_cols(
               dfr,
               tibble::as_tibble(
-                mgcv::predict.gam(mdl,dfr,type=type,terms=trms,se.fit=TRUE),
+                mgcv::predict.gam(mdl,dfr,type="link",
+                                  terms=trms,se.fit=TRUE),
               ) |> 
               dplyr::mutate(type="fit",
                             lci=qnorm(p,fit,se.fit,lower.tail=TRUE),
@@ -175,6 +177,13 @@ params:
                             terms=paste(trms,collapse=" + "))
           ) |> 
             dplyr::rename(emp_sel=fit);
+    if (type=="response"){
+      #--convert to response scale
+      inv_link = gratia::inv_link(mdl);#--get inverse link function
+      prd = prd |> dplyr::mutate(emp_sel=inv_link(emp_sel),
+                                 lci=inv_link(lci),
+                                 uci=inv_link(uci));
+    }
     if (!is.null(keep)){
       prd = prd |> 
               dplyr::distinct(pick(tidyselect::any_of(keep),emp_sel,se.fit,lci,uci,terms));

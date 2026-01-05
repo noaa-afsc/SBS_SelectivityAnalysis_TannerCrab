@@ -74,10 +74,11 @@ plotModelSmooths<-function(mdl,
     plts = list();
     if (length(smts)==1){
       p = plt1D(sme,prs,smts[1],smth) + 
-                    labs(x=subs[smts[1]],y="Partial effect on link scale");
-      cap = paste0("Partial effect of ",smts[1]," for the link-scale response ",
-                    resp," assuming a ",fmly$family," error distribution and a ",
-                    fmly$link," link.")
+                    labs(x=subs[smts[1]],y="Partial effect on ln-scale catchability");
+      cap = paste0("Partial effect of ",subs[smts[1]]," on ln-scale catachability. ",
+                   "Partial residuals for the response '",
+                   resp,"' are shown on the link scale of the model, based on its ",
+                   fmly$family," error distribution and ",fmly$link," link.")
       plts[[1]] = list(p=p,cap=cap);
       if (smth %in% c("ti(z)","s(z)")) {
         p = gratia::draw(transform_fun(sme,fun=exp,constant=model_constant(mdl))) + 
@@ -93,9 +94,10 @@ plotModelSmooths<-function(mdl,
     } else if (length(smts==2)){
       p = plt2D(sme,prs,smts[1],smts[2],smth) + 
                     labs(x=subs[smts[1]],y=subs[smts[2]],size="Partial\nresiduals");
-      cap = paste0("Partial effect of ",smts[1]," and ",smths[2]," for the link-scale response ",
-                    resp," assuming a ",fmly$family," error distribution and a ",
-                    fmly$link," link.");
+      cap = paste0("Partial effects of ",subs[smts[1]]," and ",subs[smths[2]]," on ln-scale catchbility. ",
+                   "Partial residuals for the response '",
+                   resp,"' are shown on the link scale of the model, based on its ",
+                   fmly$family," error distribution and ",fmly$link," link.");
       plts[[1]] = list(p=p,cap=cap);
     }
     allPlts[[smth]] = list(plts);

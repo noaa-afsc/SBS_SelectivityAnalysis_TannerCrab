@@ -1,0 +1,1225 @@
+---
+title: "SBS Studies: Haul-level Catchability Results"
+author:
+- name: William T. Stockhausen
+  affiliations:
+    - id: afsc-refm
+      name: "Alaska Fisheries Science Center"
+      department: "Resource Ecology and Fisheries Management"
+      address: 
+        - "7600 Sand Point Way N.E."
+        - "Seattle, Washington 98115-6349"
+date: '`r format(Sys.time(), "%b %e, %Y")`'
+fontsize: 11pt 
+number-sections: true
+number-depth: 3
+reference-location: document
+reference-section-title: References
+bibliography: '`r path.expand("~/Work/Projects/Bibliography/AllRefs.bib")`'
+csl: '`r system.file("files/CJFAS.csl",package="wtsQMD")`'
+link-citations: true
+crossref:
+  chapters: false      # prepend label reference numbers by chater number?
+  fig-title: Figure    # for caption: default is "Figure")
+  tbl-title: Table     # for caption: default is "Table")
+  title-delim: "."     # for caption: default is ":")
+  fig-prefix: Figure   # for in-text (use [-@fig-ref] to drop prefix in text)
+  tbl-prefix: Table    # for in-text (use [-@tbl-ref] to drop prefix in text)
+  fig-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  tbl-labels: arabic    # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  subref-labels: alpha a # options are arabic, roman, roman i, alpha x, alpha X; latter two starting from x/X
+  ref-hyperlink: true    # references are hyperlinked if true
+format: 
+  html: 
+    df-print: paged
+    toc: true
+    toc-location: right
+    fig-width: 8
+    fig-asp: 0.4
+    fig-dpi: 100
+    embed-resources: true
+    include-in-header: 
+      - '`r system.file("files/in-line_math_mode.html",package="wtsQMD")`'
+  pdf:
+    documentclass: scrartcl
+    toc: false
+    fig_crop: false
+    keep-tex: false
+    fig-width: 6.5
+    fig-asp: 0.4
+    geometry:
+      - left=1.0in
+      - right=1.0in
+      - top=1.0in
+      - bottom=1.0in
+      - textwidth=6.5in
+      - showframe=false
+    include-in-header: 
+      - text: |
+          \usepackage{placeins}
+          \extrafloats{500}
+          \maxdeadcycles=10000
+          \usepackage{fontspec}
+          \usepackage{multicol}
+          \usepackage{hhline}
+          \newlength\Oldarrayrulewidth
+          \newlength\Oldtabcolsep
+      - file: '`r system.file("files/ltx_ExtraLatexIncludes.tex",package="wtsQMD")`'
+echo: false
+message: false
+warning: false
+results: 'hide'
+keep-md: true
+keep-yaml: false
+editor: source
+editor_options: 
+  chunk_output_type: console
+concordance: true
+params:
+  setup: !expr 'system.file("files/qmd_setup.R",package="wtsQMD")'
+  testing: false
+  reorderTables: false   #--issue with finding "range" of table values  (don't use)
+  reorderFigures: false  #--issue with finding "range" of figure values (don't use)
+---
+<!-- IMPORTANT: if used as a child doc, all chunk labels must be unique within the overall document -->
+
+<!-- 
+  NOTEs: 
+     * child_path$peek() gives path to current script.
+     * before starting a child document, do 
+         "child_path$push(file.path(child_path$peek(),rel_path))" first, 
+         where rel_path is the relative path to the child
+     * after a child document has finished, do "child_path$pop()" to return to current path value
+-->
+
+<!-- if not child doc, set up required objects -->
+```{r}
+#| label: HaulSel_setup
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: "asis"
+  testing = params$testing;
+  if (testing) cat(params$setup,"\n\n")
+  source(params$setup);
+  if (testing) cat("root = ",root,"\n\n")
+  reorderTables  = params$reorderTables;
+  reorderFigures = params$reorderFigures;
+```
+
+```{r}
+#| label: setup_HaulSel
+#| results: 'asis'
+  require(dplyr);
+  require(ggplot2);
+  require(gratia);
+  require(kableExtra);
+  require(mgcv);
+  require(tables);
+  require(tcsamSurveyData);
+  flextable::set_flextable_defaults(font.size=11);
+  Sum = wtsUtilities::Sum;
+  old_thm = ggplot2::theme_set(cowplot::theme_cowplot(font_size = 10) +
+                               cowplot::background_grid() +
+                               cowplot::panel_border());
+  thm = wtsPlots::getStdTheme();
+  options("readr.show_col_types"=FALSE);
+  if (testing) cat("dirThs =",child_path$peek(),"\n\n")
+
+  if (rstudioapi::isAvailable()){
+    dirThs = file.path(rstudioapi::getActiveProject(),"Analysis/04_HaulLevelCatchability");
+  } else if (child_path$peek()!=""){
+    dirThs = child_path$peek();
+  } else {
+    dirThs = ".";
+  }
+  ##--NOTE: take out or modify the following as necessary
+  if (!exists("s")){
+    if (rstudioapi::isAvailable())
+      fn = file.path(rstudioapi::getActiveProject(),"rda_ProjectSetup.RData");
+    if (child_path$peek()!="")
+      fn = file.path(child_path$peek(),"../../rda_ProjectSetup.RData");
+    #--for debugging: ;
+    if (file.exists(fn)) s = wtsUtilities::getObj(fn);
+  }
+  ##--
+```
+
+```{r HaulSel-SourceFcns}
+  source(file.path(dirThs,"r_gam.prefit.functions.R"));
+  source(file.path(dirThs,"r_EvalAllModelsFunctions.R"));
+  source(file.path(dirThs,"r_EvalBestModel.R"));
+  source(file.path(dirThs,"r_PlotModelSmooths.R"));
+  source(file.path(dirThs,"r_PredictionsAndPlots.R"));
+```
+
+## Haul-level selectivity {#sec-HaulSelRes}
+
+### Males {#sec-HaulSelResM}
+
+```{r HaulSelM-BinMods-GetData}
+  lst = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3a.CensoredDataAndGridsList.Males.RData"));
+  #--data--
+  dfrDat = lst$dfrDat;
+  #--prediction grid--
+  grdPrd = list(z=lst$grids$z,d=lst$meds$d,t=lst$meds$t,f=lst$meds$f,s=lst$meds$s,h=factor("any"));
+  rm(lst);
+```
+
+```{r fig_HaulSelM-Data}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 1.0
+  p = wtsPlots::ggMarginal_Hist2D(dfrDat |> dplyr::mutate(nB=ifelse(nB>10,10,nB),
+                                                          nN=ifelse(nN>10,10,nN)),
+                                  nN,nB,
+                                  after_stat_var="count",
+                                  bins=12,
+                                  binwidths=1.0,
+                                  xlab="NMFS numbers caught",
+                                  ylab="BSFRF numbers caught",
+                                  xparams=list(limits=c(-1.5,10.5),breaks=-1:9+0.5,labels=0:10,expand=c(0,0)),
+                                  yparams=list(limits=c(-1.5,10.5),breaks=-1:9+0.5,labels=0:10,expand=c(0,0)),
+                                  #legend.position=c(0.01,0.99),
+                                  legend.position=c(0.01,0.01),
+                                  legend.justification=c(0,0));
+  cap = paste0("Joint histogram of numbers of males caught per size bin per SBS haul. ",
+               "Catch numbers > 10 have been aggregated into the number = 10 bin. ",
+               "Any size bin/haul with less than 5 males caught between both gear types have been excluded.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p,cap=cap,ori="p"));
+  rm(p);
+```
+
+#### Results for binomial models with environmental covariates {#sec-HaulSelResM-BinMods}
+
+```{r HaulSelM-BinMods-Def}
+  #--extract data within size limits----
+  dfrDatp   = dfrDat |> dplyr::filter(between(z,15,150));
+
+  lvls = c("any",unique(dfrDatp$h));
+  dfrDatpp = dfrDatp |> dplyr::mutate(h=factor(h,levels=lvls));
+  rm(lvls);
+
+  #--BINOMIAL regression  models for lnR----
+  famB = stats::binomial(link="logit");
+  #--------ALL Z 2-WAY INTERACTIONS--------------------------
+  ks=c(20,10);
+  k1 = ks[1]; k2 = ks[2];
+  frmla  = p~ti(z,bs="ts",k=k1)   +
+             ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
+             ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
+  mdl_ZE2D  = mgcv::gam(frmla,family=famB,data=dfrDatp,select=FALSE,method="ML",fit=FALSE,
+                         offset=lnq,weights=n);
+```
+
+```{r fig_HaulSelM-BinMods-Scrs}
+#| results: asis
+#| fig-width: 9
+#| fig-asp: 0.6
+  mdl = mdl_ZE2D;
+  dfrScrs = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3b2.BinomialModels_Scrs.RData"));
+
+  #--calculate mean scores
+  dfrMnScrs = dfrScrs |> dplyr::group_by(i,smths) |> 
+                dplyr::summarize(n=n(),
+                                mnScrTst=mean(scrTst),
+                                mnAIC=mean(aic),
+                                mnRsrPrd=mean(rsqr_prd),
+                                numConcrvTst=sum(concrv_tst)) |> 
+                dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
+                dplyr::filter(n>18,numConcrvTst>10) |> 
+                dplyr::arrange(dplyr::desc(mnScrTst));
+
+  #--compare top 5 models + base by scores
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+              aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
+         geom_point(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                      dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+                    mapping=aes(x=smths,y=mnScrTst),shape=23,size=6) +
+         geom_hline(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls[1]),
+                    aes(yintercept=mnScrTst),linetype=3) + 
+         labs(y="GCV score",subtitle="binomial models") + 
+         wtsPlots::getStdTheme() + 
+         theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
+               axis.title.x=element_blank());
+  best_trms = "ti(z)+ti(t)+ti(f)";
+  cap = paste0("Scores from the top-ranking binomial models, plus the base model, for males. ",
+               "Diamond: mean score; ",
+               "points: fold-specific scores; box: box-and-whiskers plot inidicating median and ...; ",
+               "dotted line indicate the best mean score. ",
+               "The model with smooth terms '",best_trms,"' was considered to be the best, ",
+               "based on selecting the simplest 'equivalent' model after a comparison of ",
+               "the mean and range of the scores across the models.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,cap=cap,ori="L"));
+  rm(dfrScrs,p1,best_trms,cap);
+```
+
+```{r fig_HaulSelM-BinMods-BaseSels}
+#| results: asis
+#| fig-cap: "Base selectivity (no covariate effects) estimated from the top-ranking binomial models for males." 
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  lstMdls = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    #--sel_mdl = sel_mdls[!is.na(sel_mdls)][1];
+    idx  = (dfrMnScrs |> dplyr::filter(smths==sel_mdl))$i;
+    lstMdls[[sel_mdl]] = evalBestModel(mdl,ks,idx,);
+  }
+
+  lstPrd = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+                           dplyr::mutate(trms=sel_mdl);
+  }
+  dfrPrd = dplyr::bind_rows(lstPrd) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  
+  p1 = ggplot(dfrPrd,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=trms,fill=trms)) + 
+        geom_ribbon(alpha=0.3) + geom_line() + 
+        geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+        scale_y_continuous(limits=c(0,1.5),oob=scales::squish) + 
+        labs(x="size (mm CW)",y="base selectivity",colour="model terms",fill="model terms") + 
+        wtsPlots::getStdTheme() + 
+        theme(legend.position="inside",
+              legend.position.inside=c(0.01,0.99),
+              legend.justification.inside=c(0,1));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="P"));
+  rm(dfrMnScrs,lstMdls,sel_mdl,sel_mdls,idx,lstPrd,dfrPrd,p1);
+```
+
+```{r HaulSelM-BinModBest-SelFcn}
+  best_mdl = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3b3b.BinomialModels_BestModel.RData"));  
+  plts1 = plotModelSmooths(best_mdl);
+```
+
+```{r fig_HaulSelM-BinModBest-Smth-z}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(z)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(z)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelM-BinModBest-Smth-t}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(t)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(t)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelM-BinModBest-Smth-f}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(f)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(f)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plts1,plt,cap);
+```
+
+```{r fig_HaulSelM-BinModBest-Resids} 
+#| results: asis
+#| fig-cap: "DHARMa residuals from the 'best' binomial model for males. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(best_mdl);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(best_mdl,resSimMdl);
+```
+
+```{r fig_HaulSelM-BinModBest-AllYrs-UnWgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual unweighted mean catchability curves for males, estimated using the best binomial model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step4a.Males.BinomialModel_Best.AllPredicted.SelFcns.RData"));
+  dfrPrdAvg = dfrPrd |> 
+                dplyr::group_by(y,z) |> 
+                dplyr::summarize(emp_sel=mean(emp_sel,na.rm=TRUE)) |> 
+                dplyr::ungroup();
+  
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y),group=HAULJOIN)) + 
+          geom_line(linetype=3) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(group=NA),linewidth=2) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+# yrs = 1982:2023;
+# ggplot(dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y))) + 
+#   geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+#   geom_line(linewidth=1) + 
+#   labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+#   wtsPlots::getStdTheme()+
+#   theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrdAvg,yrs,plt);
+```
+
+```{r fig_HaulSelM-BinModBest-AllYrs-Wgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual mean catchability curves for males, weighted by size-specific CPUE, estimated using the best binomial model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  #--calculate CPUE-weighted averages across hauls by year
+  dfrCPUE = wtsUtilities::getObj(file.path(dirThs,"rda_Step4.dfrCPUE_NMFS.RData")) |> 
+              dplyr::filter(SEX=="MALE") |> 
+              dplyr::mutate(N=numCPUE*AREA_SWEPT_VARIABLE) |> 
+              dplyr::select(y=YEAR,HAULJOIN,z=SIZE,N,numCPUE);
+  dfrPrd1 = dfrPrd |> 
+              dplyr::inner_join(dfrCPUE,by=c("y","HAULJOIN","z"));
+  dfrPrd1Avg = dfrPrd1 |> 
+                 dplyr::group_by(y,z) |> 
+                 dplyr::summarise(emp_selC=sum(numCPUE*emp_sel,na.rm=TRUE)/sum(numCPUE),
+                                  emp_selN=sum(N*emp_sel,na.rm=TRUE)/sum(N)) |> 
+                 dplyr::ungroup();
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd1Avg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_selC,colour=as.character(y))) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=,linewidth=1) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrCPUE,dfrPrd,dfrPrd1,dfrPrd1Avg,yrs,plt);
+```
+
+#### Results for the binomial model with haul-level random effects  {#sec-HaulSelResM-BinModRE}
+
+```{r HaulSelM-BinModRE-GetModel}
+  mdlRE = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3b1.BinomialModels_RE.RData"));
+```
+
+```{r fig_HaulSelM-BinModRE-SelFcn}
+#| results: asis
+#| fig-cap: "Estimated haul-level catchability for males based on the random effects binomial model (no covariates)."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = prdMod(mdlRE,trms=c("all"),type="link",lst=grdPrd,p=0.10) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  plt = plotMod(dfrPrd);
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrd,plt);
+```
+
+```{r fig_HaulSelM-BinModRE-Resids}
+#| results: asis
+#| fig-cap: "DHARMa residuals from the random effects binomial model for males. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(mdlRE);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(resSimMdl);
+```
+
+```{r HaulSelM-BinMods-Cleanup}
+  rm(dfrDatp,dfrDatpp,famB,ks,k1,k2,frmla,mdl_ZE2D,mdl,mdlRE);
+```
+
+#### Results for Tweedie models with environmental covariates {#sec-HaulSelResM-TwdMods}
+
+```{r HaulSelM-TwdMods-Def}
+  #--extract data within size limits, remove questionable observations (obs w/ high NMFS/low BSFRF)----
+  dfrDatp   = dfrDat |> dplyr::filter(obsR<10, between(z,15,150));
+  lvls = c("any",unique(dfrDatp$h));
+  dfrDatpp = dfrDatp |> dplyr::mutate(h=factor(h,levels=lvls));
+  rm(lvls);
+
+  #--TWEEDIE regression  models for lnR----
+  famTW = mgcv::tw(link="log");
+  #--------ALL Z 2-WAY INTERACTIONS--------------------------
+    ks=c(20,10);
+    k1 = ks[1]; k2 = ks[2];
+    frmla  = obsR~ti(z,bs="ts",k=k1)   +
+                   ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
+                   ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
+    mdl_ZE2D  = mgcv::gam(frmla,family=famTW,data=dfrDatp,select=FALSE,method="ML",fit=FALSE);
+```
+
+```{r fig_HaulSelM-TwdMods-Scrs}
+#| results: asis
+#| fig-width: 9
+#| fig-asp: 0.6
+  mdl = mdl_ZE2D;
+  dfrScrs = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3b2.LnTweedieModels_Scrs.RData"));
+
+  #--calculate mean scores
+  dfrMnScrs = dfrScrs |> dplyr::group_by(i,smths) |> 
+                dplyr::summarize(n=n(),
+                                mnScrTst=mean(scrTst),
+                                mnAIC=mean(aic),
+                                mnRsrPrd=mean(rsqr_prd),
+                                numConcrvTst=sum(concrv_tst)) |> 
+                dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
+                dplyr::filter(n>18,numConcrvTst>10) |> 
+                dplyr::arrange(dplyr::desc(mnScrTst));
+
+  #--compare top 5 models + base by scores
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+              aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
+         geom_point(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                      dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+                    mapping=aes(x=smths,y=mnScrTst),shape=23,size=6) +
+         geom_hline(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls[1]),
+                    aes(yintercept=mnScrTst),linetype=3) + 
+         labs(y="GCV score",subtitle="Tweedie models") + 
+         wtsPlots::getStdTheme() + 
+         theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
+               axis.title.x=element_blank());
+  best_trms = "ti(z)+ti(f)";
+  cap = paste0("Scores from the top-ranking Tweedie models for males, plus the base model. ",
+               "Diamond: mean score; ",
+               "points: fold-specific scores; box: box-and-whiskers plot inidicating median and ...; ",
+               "dotted line indicate the best mean score. ",
+               "The model with smooth terms '",best_trms,"' was considered to be the best, ",
+               "based on selecting the simplest 'equivalent' model after a comparison of ",
+               "the mean and range of the scores across the models.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,cap=cap,ori="L"));
+  rm(dfrScrs,p1,best_trms,cap);
+```
+
+```{r fig_HaulSelM-TwdMods-BaseSels}
+#| results: asis
+#| fig-cap: "Base selectivity (no covariate effects) estimated from the top-ranking Tweedie models for males." 
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  lstMdls = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    #--sel_mdl = sel_mdls[!is.na(sel_mdls)][1];
+    idx  = (dfrMnScrs |> dplyr::filter(smths==sel_mdl))$i;
+    lstMdls[[sel_mdl]] = evalBestModel(mdl,ks,idx,);
+  }
+
+  lstPrd = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+                           dplyr::mutate(trms=sel_mdl);
+  }
+  dfrPrd = dplyr::bind_rows(lstPrd) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  
+  p1 = ggplot(dfrPrd,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=trms,fill=trms)) + 
+        geom_ribbon(alpha=0.3) + geom_line() + 
+        geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+        scale_y_continuous(limits=c(0,1.5),oob=scales::squish) + 
+        labs(x="size (mm CW)",y="base selectivity",colour="model terms",fill="model terms") + 
+        wtsPlots::getStdTheme() + 
+        theme(legend.position="inside",
+              legend.position.inside=c(0.01,0.99),
+              legend.justification.inside=c(0,1));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="P"));
+  rm(dfrMnScrs,lstMdls,sel_mdl,sel_mdls,idx,lstPrd,dfrPrd,p1);
+```
+
+```{r HaulSelM-TwdModBest-SelFcn}
+  best_mdl = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3b3b.LnTweedieModels_BestModel.RData"));  
+  plts1 = plotModelSmooths(best_mdl);
+```
+
+```{r fig_HaulSelM-TwdModBest-Smth-z}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(z)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(z)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelM-TwdModBest-Smth-f}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(f)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(f)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap,plts1);
+```
+
+```{r fig_HaulSelM-TwdModBest-Resids} 
+#| results: asis
+#| fig-cap: "DHARMa residuals from the 'best' Tweedie model for males. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(best_mdl);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(best_mdl,resSimMdl);
+```
+
+```{r fig_HaulSelM-TwdModBest-AllYrs-UnWgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual unweighted mean catchability curves for males, estimated using the best Tweedie model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step4a.Males.LnTweedieModel_Best.AllPredicted.SelFcns.RData"));
+  dfrPrdAvg = dfrPrd |> 
+                dplyr::group_by(y,z) |> 
+                dplyr::summarize(emp_sel=mean(emp_sel,na.rm=TRUE)) |> 
+                dplyr::ungroup();
+  
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y),group=HAULJOIN)) + 
+          geom_line(linetype=3) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(group=NA),linewidth=2) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+# yrs = 1982:2023;
+# ggplot(dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y))) + 
+#   geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+#   geom_line(linewidth=1) + 
+#   labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+#   wtsPlots::getStdTheme()+
+#   theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrdAvg,yrs,plt);
+```
+
+```{r fig_HaulSelM-TwdModBest-AllYrs-Wgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual mean catchability curves for males, weighted by size-specific CPUE, estimated using the best Tweedie model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  #--calculate CPUE-weighted averages across hauls by year
+  dfrCPUE = wtsUtilities::getObj(file.path(dirThs,"rda_Step4.dfrCPUE_NMFS.RData")) |> 
+              dplyr::filter(SEX=="MALE") |> 
+              dplyr::mutate(N=numCPUE*AREA_SWEPT_VARIABLE) |> 
+              dplyr::select(y=YEAR,HAULJOIN,z=SIZE,N,numCPUE);
+  dfrPrd1 = dfrPrd |> 
+              dplyr::inner_join(dfrCPUE,by=c("y","HAULJOIN","z"));
+  dfrPrd1Avg = dfrPrd1 |> 
+                 dplyr::group_by(y,z) |> 
+                 dplyr::summarise(emp_selC=sum(numCPUE*emp_sel,na.rm=TRUE)/sum(numCPUE),
+                                  emp_selN=sum(N*emp_sel,na.rm=TRUE)/sum(N)) |> 
+                 dplyr::ungroup();
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd1Avg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_selC,colour=as.character(y))) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=,linewidth=1) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrCPUE,dfrPrd,dfrPrd1,dfrPrd1Avg,yrs,plt);
+```
+
+#### Results for the Tweedie model with haul-level random effects {#sec-HaulSelResM-TwdModRE}
+
+```{r HaulSelM-TwdModRE-GetModel}
+  mdlRE = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Males/rda_Step3b1.LnTweedieModels_RE.RData"));
+```
+
+```{r fig_HaulSelM-TwdModRE-SelFcn}
+#| results: asis
+#| fig-cap: "Estimated haul-level catchability for males based on the random effects Tweedie model (no covariates)."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = prdMod(mdlRE,trms=c("all"),type="link",lst=grdPrd,p=0.10) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  plt = plotMod(dfrPrd);
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrd,plt);
+```
+
+```{r fig_HaulSelM-TwdModRE-Resids}
+#| results: asis
+#| fig-cap: "DHARMa residuals from the random effects Tweedie model for males. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(mdlRE);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(resSimMdl);
+```
+
+```{r HaulSelM-TwdMods-Cleanup}
+  rm(dfrDatp,dfrDatpp,famTW,ks,k1,k2,frmla,mdl_ZE2D,mdl,mdlRE);
+```
+
+```{r HaulSelM-Cleanup}
+  rm(dfrDat,grdPrd);
+```
+
+### Females {#sec-HaulSelResF}
+
+```{r HaulSelF-BinMods-GetData}
+  lst = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3a.CensoredDataAndGridsList.Females.RData"));
+  #--data--
+  dfrDat = lst$dfrDat;
+  #--prediction grid--
+  grdPrd = list(z=lst$grids$z,d=lst$meds$d,t=lst$meds$t,f=lst$meds$f,s=lst$meds$s,h=factor("any"));
+  rm(lst);
+```
+
+```{r fig_HaulSelF-Data}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 1.0
+  p = wtsPlots::ggMarginal_Hist2D(dfrDat |> dplyr::mutate(nB=ifelse(nB>10,10,nB),
+                                                          nN=ifelse(nN>10,10,nN)),
+                                  nN,nB,
+                                  after_stat_var="count",
+                                  bins=12,
+                                  binwidths=1.0,
+                                  xlab="NMFS numbers caught",
+                                  ylab="BSFRF numbers caught",
+                                  xparams=list(limits=c(-1.5,10.5),breaks=-1:9+0.5,labels=0:10,expand=c(0,0)),
+                                  yparams=list(limits=c(-1.5,10.5),breaks=-1:9+0.5,labels=0:10,expand=c(0,0)),
+                                  #legend.position=c(0.01,0.99),
+                                  legend.position=c(0.01,0.01),
+                                  legend.justification=c(0,0));
+  cap = paste0("Joint histogram of numbers of females caught per size bin per SBS haul. ",
+               "Catch numbers > 10 have been aggregated into the number = 10 bin. ",
+               "Any size bin/haul with less than 5 males caught between both gear types have been excluded.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p,cap=cap,ori="p"));
+  rm(p);
+```
+
+#### Results for binomial models with environmental covariates {#sec-HaulSelResF-BinMods}
+
+```{r HaulSelF-BinMods-Def}
+  #--extract data within size limits----
+  dfrDatp   = dfrDat |> dplyr::filter(between(z,15,130));
+
+  lvls = c("any",unique(dfrDatp$h));
+  dfrDatpp = dfrDatp |> dplyr::mutate(h=factor(h,levels=lvls));
+  rm(lvls);
+
+  #--BINOMIAL regression  models for lnR----
+  famB = stats::binomial(link="logit");
+  #--------ALL Z 2-WAY INTERACTIONS--------------------------
+  ks=c(10,8);
+  k1 = ks[1]; k2 = ks[2];
+  frmla  = p~ti(z,bs="ts",k=k1)   +
+             ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
+             ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
+  mdl_ZE2D  = mgcv::gam(frmla,family=famB,data=dfrDatp,select=FALSE,method="ML",fit=FALSE,
+                         offset=lnq,weights=n);
+```
+
+```{r fig_HaulSelF-BinMods-Scrs}
+#| results: asis
+#| fig-width: 9
+#| fig-asp: 0.6
+  mdl = mdl_ZE2D;
+  dfrScrs = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3b2.BinomialModels_Scrs.RData"));
+
+  #--calculate mean scores
+  dfrMnScrs = dfrScrs |> dplyr::group_by(i,smths) |> 
+                dplyr::summarize(n=n(),
+                                mnScrTst=mean(scrTst),
+                                mnAIC=mean(aic),
+                                mnRsrPrd=mean(rsqr_prd),
+                                numConcrvTst=sum(concrv_tst)) |> 
+                dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
+                dplyr::filter(n>18,numConcrvTst>10) |> 
+                dplyr::arrange(dplyr::desc(mnScrTst));
+
+  #--compare top 5 models + base by scores
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+              aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
+         geom_point(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                      dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+                    mapping=aes(x=smths,y=mnScrTst),shape=23,size=6) +
+         geom_hline(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls[1]),
+                    aes(yintercept=mnScrTst),linetype=3) + 
+         labs(y="GCV score",subtitle="binomial models") + 
+         wtsPlots::getStdTheme() + 
+         theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
+               axis.title.x=element_blank());
+  best_trms = "ti(z)+ti(t)+ti(f)";
+  cap = paste0("Scores from the top-ranking binomial models, plus the base model, for females. ",
+               "Diamond: mean score; ",
+               "points: fold-specific scores; box: box-and-whiskers plot inidicating median and ...; ",
+               "dotted line indicate the best mean score. ",
+               "The model with smooth terms '",best_trms,"' was considered to be the best, ",
+               "based on selecting the simplest 'equivalent' model after a comparison of ",
+               "the mean and range of the scores across the models.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,cap=cap,ori="L"));
+  rm(dfrScrs,p1,best_trms,cap);
+```
+
+```{r fig_HaulSelF-BinMods-BaseSels}
+#| results: asis
+#| fig-cap: "Base selectivity (no covariate effects) estimated from the top-ranking binomial models for females." 
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  lstMdls = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    #--sel_mdl = sel_mdls[!is.na(sel_mdls)][1];
+    idx  = (dfrMnScrs |> dplyr::filter(smths==sel_mdl))$i;
+    lstMdls[[sel_mdl]] = evalBestModel(mdl,ks,idx,);
+  }
+
+  lstPrd = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+                           dplyr::mutate(trms=sel_mdl);
+  }
+  dfrPrd = dplyr::bind_rows(lstPrd) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  
+  p1 = ggplot(dfrPrd,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=trms,fill=trms)) + 
+        geom_ribbon(alpha=0.3) + geom_line() + 
+        geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+        scale_y_continuous(limits=c(0,1.5),oob=scales::squish) + 
+        labs(x="size (mm CW)",y="base selectivity",colour="model terms",fill="model terms") + 
+        wtsPlots::getStdTheme() + 
+        theme(legend.position="inside",
+              legend.position.inside=c(0.01,0.99),
+              legend.justification.inside=c(0,1));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="P"));
+  rm(dfrMnScrs,lstMdls,sel_mdl,sel_mdls,idx,lstPrd,dfrPrd,p1);
+```
+
+```{r HaulSelF-BinModBest-SelFcn}
+  best_mdl = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3b3b.BinomialModels_BestModel.RData"));  
+  plts1 = plotModelSmooths(best_mdl);
+```
+
+```{r fig_HaulSelF-BinModBest-Smth-z}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(z)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(z)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelF-BinModBest-Smth-t}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(t)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(t)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelF-BinModBest-Smth-f}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(f)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(f)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plts1,plt,cap);
+```
+
+```{r fig_HaulSelF-BinModBest-Resids} 
+#| results: asis
+#| fig-cap: "DHARMa residuals from the 'best' binomial model for females. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(best_mdl);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(best_mdl,resSimMdl);
+```
+
+```{r fig_HaulSelF-BinModBest-AllYrs-UnWgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual unweighted mean catchability curves for females, estimated using the best binomial model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step4a.Females.BinomialModel_Best.AllPredicted.SelFcns.RData"));
+  dfrPrdAvg = dfrPrd |> 
+                dplyr::group_by(y,z) |> 
+                dplyr::summarize(emp_sel=mean(emp_sel,na.rm=TRUE)) |> 
+                dplyr::ungroup();
+  
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y),group=HAULJOIN)) + 
+          geom_line(linetype=3) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(group=NA),linewidth=2) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+# yrs = 1982:2023;
+# ggplot(dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y))) + 
+#   geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+#   geom_line(linewidth=1) + 
+#   labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+#   wtsPlots::getStdTheme()+
+#   theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrdAvg,yrs,plt);
+```
+
+```{r fig_HaulSelF-BinModBest-AllYrs-Wgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual mean catchability curves for females, weighted by size-specific CPUE, estimated using the best binomial model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  #--calculate CPUE-weighted averages across hauls by year
+  dfrCPUE = wtsUtilities::getObj(file.path(dirThs,"rda_Step4.dfrCPUE_NMFS.RData")) |> 
+              dplyr::filter(SEX=="FEMALE") |> 
+              dplyr::mutate(N=numCPUE*AREA_SWEPT_VARIABLE) |> 
+              dplyr::select(y=YEAR,HAULJOIN,z=SIZE,N,numCPUE);
+  dfrPrd1 = dfrPrd |> 
+              dplyr::inner_join(dfrCPUE,by=c("y","HAULJOIN","z"));
+  dfrPrd1Avg = dfrPrd1 |> 
+                 dplyr::group_by(y,z) |> 
+                 dplyr::summarise(emp_selC=sum(numCPUE*emp_sel,na.rm=TRUE)/sum(numCPUE),
+                                  emp_selN=sum(N*emp_sel,na.rm=TRUE)/sum(N)) |> 
+                 dplyr::ungroup();
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd1Avg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_selC,colour=as.character(y))) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=,linewidth=1) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrCPUE,dfrPrd,dfrPrd1,dfrPrd1Avg,yrs,plt);
+```
+
+#### Results for the binomial model with haul-level random effects  {#sec-HaulSelResF-BinModRE}
+
+```{r HaulSelF-BinModRE-GetModel}
+  mdlRE = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3b1.BinomialModels_RE.RData"));
+```
+
+```{r fig_HaulSelF-BinModRE-SelFcn}
+#| results: asis
+#| fig-cap: "Estimated haul-level catchability foe females based on the random effects bniomial model (no covariates)."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = prdMod(mdlRE,trms=c("all"),type="link",lst=grdPrd,p=0.10) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  plt = plotMod(dfrPrd);
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrd,plt);
+```
+
+```{r fig_HaulSelF-BinModRE-Resids}
+#| results: asis
+#| fig-cap: "DHARMa residuals from the random effects binomial model for females. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(mdlRE);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(resSimMdl);
+```
+
+```{r HaulSelF-BinMods-Cleanup}
+  rm(dfrDatp,dfrDatpp,famB,ks,k1,k2,frmla,mdl_ZE2D,mdl,mdlRE);
+```
+
+#### Results for Tweedie models with environmental covariates {#sec-HaulSelResF-TwdMods}
+
+```{r HaulSelF-TwdMods-Def}
+  #--extract data within size limits, remove questionable observations (obs w/ high NMFS/low BSFRF)----
+  dfrDatp   = dfrDat |> dplyr::filter(obsR<10, between(z,15,130));
+  lvls = c("any",unique(dfrDatp$h));
+  dfrDatpp = dfrDatp |> dplyr::mutate(h=factor(h,levels=lvls));
+  rm(lvls);
+
+  #--TWEEDIE regression  models for lnR----
+  famTW = mgcv::tw(link="log");
+  #--------ALL Z 2-WAY INTERACTIONS--------------------------
+    ks=c(10,8);
+    k1 = ks[1]; k2 = ks[2];
+    frmla  = obsR~ti(z,bs="ts",k=k1)   +
+                   ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
+                   ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
+    mdl_ZE2D  = mgcv::gam(frmla,family=famTW,data=dfrDatp,select=FALSE,method="ML",fit=FALSE);
+```
+
+```{r fig_HaulSelF-TwdMods-Scrs}
+#| results: asis
+#| fig-width: 9
+#| fig-asp: 0.6
+  mdl = mdl_ZE2D;
+  dfrScrs = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3b2.LnTweedieModels_Scrs.RData"));
+
+  #--calculate mean scores
+  dfrMnScrs = dfrScrs |> dplyr::group_by(i,smths) |> 
+                dplyr::summarize(n=n(),
+                                mnScrTst=mean(scrTst),
+                                mnAIC=mean(aic),
+                                mnRsrPrd=mean(rsqr_prd),
+                                numConcrvTst=sum(concrv_tst)) |> 
+                dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
+                dplyr::filter(n>18,numConcrvTst>10) |> 
+                dplyr::arrange(dplyr::desc(mnScrTst));
+
+  #--compare top 5 models + base by scores
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+              aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
+         geom_point(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls) |> 
+                      dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
+                    mapping=aes(x=smths,y=mnScrTst),shape=23,size=6) +
+         geom_hline(data=dfrMnScrs |> dplyr::filter(smths %in% sel_mdls[1]),
+                    aes(yintercept=mnScrTst),linetype=3) + 
+         labs(y="GCV score",subtitle="Tweedie models") + 
+         wtsPlots::getStdTheme() + 
+         theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
+               axis.title.x=element_blank());
+  best_trms = "ti(z)+ti(t)+ti(f)";
+  cap = paste0("Scores from the top-ranking Tweedie models, plus the base model, for females. ",
+               "Diamond: mean score; ",
+               "points: fold-specific scores; box: box-and-whiskers plot inidicating median and ...; ",
+               "dotted line indicate the best mean score. ",
+               "The model with smooth terms '",best_trms,"' was considered to be the best, ",
+               "based on selecting the simplest 'equivalent' model after a comparison of ",
+               "the mean and range of the scores across the models.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,cap=cap,ori="L"));
+  rm(dfrScrs,p1,best_trms,cap);
+```
+
+```{r fig_HaulSelF-TwdMods-BaseSels}
+#| results: asis
+#| fig-cap: "Base selectivity (no covariate effects) estimated from the top-ranking Tweedie models for females." 
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  lstMdls = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    #--sel_mdl = sel_mdls[!is.na(sel_mdls)][1];
+    idx  = (dfrMnScrs |> dplyr::filter(smths==sel_mdl))$i;
+    lstMdls[[sel_mdl]] = evalBestModel(mdl,ks,idx,);
+  }
+
+  lstPrd = list();
+  for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
+    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+                           dplyr::mutate(trms=sel_mdl);
+  }
+  dfrPrd = dplyr::bind_rows(lstPrd) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  
+  p1 = ggplot(dfrPrd,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=trms,fill=trms)) + 
+        geom_ribbon(alpha=0.3) + geom_line() + 
+        geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+        scale_y_continuous(limits=c(0,1.5),oob=scales::squish) + 
+        labs(x="size (mm CW)",y="base selectivity",colour="model terms",fill="model terms") + 
+        wtsPlots::getStdTheme() + 
+        theme(legend.position="inside",
+              legend.position.inside=c(0.01,0.99),
+              legend.justification.inside=c(0,1));
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p1,ori="P"));
+  rm(dfrMnScrs,lstMdls,sel_mdl,sel_mdls,idx,lstPrd,dfrPrd,p1);
+```
+
+```{r HaulSelF-TwdModBest-SelFcn}
+  best_mdl = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3b3b.LnTweedieModels_BestModel.RData"));  
+  plts1 = plotModelSmooths(best_mdl);
+```
+
+```{r fig_HaulSelF-TwdModBest-Smth-z}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(z)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(z)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelF-TwdModBest-Smth-t}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(t)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(t)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap);
+```
+
+```{r fig_HaulSelF-TwdModBest-Smth-f}
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 0.8
+  plt = plts1$`ti(f)`[[1]][[1]]$p + wtsPlots::getStdTheme() + 
+          geom_hline(yintercept=0.0,linetype=3) + 
+          scale_y_continuous(limits=c(-5,5),oob=scales::oob_squish);
+  cap = paste0(plts1$`ti(f)`[[1]][[1]]$cap," Residuals beyond y-axis bounds are plotted at the bound.");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,cap=cap,ori="P"));
+  rm(plt,cap,plts1);
+```
+
+```{r fig_HaulSelF-TwdModBest-Resids} 
+#| results: asis
+#| fig-cap: "DHARMa residuals from the 'best' Tweedie model for females. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(best_mdl);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(best_mdl,resSimMdl);
+```
+
+```{r fig_HaulSelF-TwdModBest-AllYrs-UnWgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual unweighted mean catchability curves for females, estimated using the best binomial model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step4a.Females.BinomialModel_Best.AllPredicted.SelFcns.RData"));
+  dfrPrdAvg = dfrPrd |> 
+                dplyr::group_by(y,z) |> 
+                dplyr::summarize(emp_sel=mean(emp_sel,na.rm=TRUE)) |> 
+                dplyr::ungroup();
+  
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y),group=HAULJOIN)) + 
+          geom_line(linetype=3) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(group=NA),linewidth=2) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+# yrs = 1982:2023;
+# ggplot(dfrPrdAvg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_sel,colour=as.character(y))) + 
+#   geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+#   geom_line(linewidth=1) + 
+#   labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+#   wtsPlots::getStdTheme()+
+#   theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrdAvg,yrs,plt);
+```
+
+```{r fig_HaulSelF-TwdModBest-AllYrs-Wgtd}
+#| results: asis
+#| fig-cap: "Haul-specific and annual mean catchability curves for females, weighted by size-specific CPUE, estimated using the best Tweedie model with  covraiates."
+#| fig-width: 9
+#| fig-asp: 0.6
+  #--calculate CPUE-weighted averages across hauls by year
+  dfrCPUE = wtsUtilities::getObj(file.path(dirThs,"rda_Step4.dfrCPUE_NMFS.RData")) |> 
+              dplyr::filter(SEX=="FEMALE") |> 
+              dplyr::mutate(N=numCPUE*AREA_SWEPT_VARIABLE) |> 
+              dplyr::select(y=YEAR,HAULJOIN,z=SIZE,N,numCPUE);
+  dfrPrd1 = dfrPrd |> 
+              dplyr::inner_join(dfrCPUE,by=c("y","HAULJOIN","z"));
+  dfrPrd1Avg = dfrPrd1 |> 
+                 dplyr::group_by(y,z) |> 
+                 dplyr::summarise(emp_selC=sum(numCPUE*emp_sel,na.rm=TRUE)/sum(numCPUE),
+                                  emp_selN=sum(N*emp_sel,na.rm=TRUE)/sum(N)) |> 
+                 dplyr::ungroup();
+  yrs = 1982:2023;
+  plt = ggplot(dfrPrd1Avg |> dplyr::filter(y %in% yrs),aes(x=z,y=emp_selC,colour=as.character(y))) + 
+          geom_hline(yintercept=c(0.0,0.5,1.0),linetype=3) + 
+          geom_line(data=,linewidth=1) + 
+          labs(x="size (mm CW)",y="predicted selectivity",colour="year") + 
+          wtsPlots::getStdTheme()+
+          theme(legend.position="none");
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrCPUE,dfrPrd,dfrPrd1,dfrPrd1Avg,yrs,plt);
+```
+
+#### Results for the Tweedie model with haul-level random effects {#sec-HaulSelResF-TwdModRE}
+
+```{r HaulSelF-TwdModRE-GetModel}
+  mdlRE = wtsUtilities::getObj(file.path(dirThs,"CrossVal_Females/rda_Step3b1.LnTweedieModels_RE.RData"));
+```
+
+```{r fig_HaulSelF-TwdModRE-SelFcn}
+#| results: asis
+#| fig-cap: "Estimated haul-level catchability for females based on the random effects Tweedie model (no covariates)."
+#| fig-width: 9
+#| fig-asp: 0.6
+  dfrPrd = prdMod(mdlRE,trms=c("all"),type="link",lst=grdPrd,p=0.10) |> 
+            dplyr::mutate(emp_sel=exp(emp_sel),
+                          lci=exp(lci),
+                          uci=exp(uci));
+  plt = plotMod(dfrPrd);
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(plt,ori="L"));
+  rm(dfrPrd,plt);
+```
+
+```{r fig_HaulSelF-TwdModRE-Resids}
+#| results: asis
+#| fig-cap: "DHARMa residuals from the random effects Tweedie model for females. Left: quantile-quantile plot for observed and expected residuals under the null hypothesis. Right: quantile deviations for residuals."
+#| fig-width: 9
+#| fig-asp: 0.6
+  resSimMdl = DHARMa::simulateResiduals(mdlRE);
+  lstFigs = c(lstFigs,wtsQMD::printRGraphics(expression(plot(resSimMdl)),ori="L"));
+  rm(resSimMdl);
+```
+
+```{r HaulSelF-TwdMods-Cleanup}
+  rm(dfrDatp,dfrDatpp,famTW,ks,k1,k2,frmla,mdl_ZE2D,mdl,mdlRE);
+```
+
+```{r HaulSelF-Cleanup}
+  rm(dfrDat,grdPrd);
+```
+
+### Best estimates 
+
+```{r fig_HaulSel-BestSels}
+#| results: asis
+#| fig-cap: "Estimated sex-specific haul-level catchability, based on the models considered to be the best overall."
+#| fig-width: 9
+#| fig-asp: 0.6
+
+```
+
+<!-- references -->
+```{r,eval=!knitr::opts_knit$get("child")&(!isPDF),results='asis'}
+  cat("# References {-}\n");
+  cat("::: {#refs}\n");
+  cat(":::\n\n");
+```
+
+<!-- tables, if not child doc and lstTbls is not empty -->
+```{r}
+#| label: tables_SurvSel
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printTablesSectionFromList.R",package="wtsQMD"));
+```
+
+<!-- figures, if not child doc and lstFigs is not empty -->
+```{r}
+#| label: figures_SurvSel
+#| eval: !expr '!knitr::opts_knit$get("child")'
+#| results: asis
+  source(system.file("files/printFiguresSectionFromList.R",package="wtsQMD"));
+```

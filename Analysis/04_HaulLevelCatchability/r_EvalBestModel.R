@@ -13,7 +13,8 @@ require(tibble);
 #' 
 evalBestModel<-function(mdl,
                         ks,
-                        i){
+                        i,
+                        verbose=FALSE){
   #--data for model fit
   if (class(mdl)=="gam.prefit"){
     mdldata   = mdl$mf;
@@ -41,7 +42,7 @@ evalBestModel<-function(mdl,
   cmbs = getCombs(mdlsmths);
   
   idx = as.logical(as.vector(t(cmbs[i,])));
-  cat(paste0("\n\nEvaluating best model (",i,"): ",paste(mdlsmths[idx],collapse=" + "),"\n"));
+  if (verbose) cat(paste0("\n\nEvaluating best model (",i,"): ",paste(mdlsmths[idx],collapse=" + "),"\n"));
   frmla  = createModelFormula(resp,mdlsmths[idx],mdlsmtrms[idx],mdlbss[idx],ks,
                               env=environment());
   best   = mgcv::gam(formula=frmla,

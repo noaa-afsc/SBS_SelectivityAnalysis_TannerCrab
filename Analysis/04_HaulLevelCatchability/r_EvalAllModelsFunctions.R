@@ -73,6 +73,7 @@ if (FALSE){
 #--getCombs code-------------------------------------------
 #' 
 #' @param mdlsmths - vector of model smooths 
+#' @param verbose - flag to print details
 #' 
 #' @return dataframe with all possible combinations of 
 #' smooth terms involving the first term. Each column represents a 
@@ -80,7 +81,7 @@ if (FALSE){
 #' potential model, with included smooth terms having a value of 1. 
 #' Excluded terms have a vlaue of 0.
 #' 
-getCombs<-function(mdlsmths){
+getCombs<-function(mdlsmths,verbose=FALSE){
   smbase = mdlsmths[1]; # required (base) terms
   smxtra = mdlsmths[2:length(mdlsmths)];# potential (extra) terms to evaluate
   n_xtra = length(smxtra);# number of potential (extra)  terms to evaluate
@@ -90,7 +91,7 @@ getCombs<-function(mdlsmths){
     names(cmbs)[ncol(cmbs)] = smxtra[i];
   }
   ncmbs = nrow(cmbs);
-  cat("Total number of combinations:",ncmbs,"\n");
+  if (verbose) cat("Total number of combinations:",ncmbs,"\n");
   return(cmbs);
 }
 
@@ -148,6 +149,7 @@ evalAllModels<-function(mdl,
                         max_ncmbs=NULL,
                         icmbs_=NULL,
                         logfile=NULL,
+                        verbose=TRUE,
                         debug=FALSE){
   cat("in evalAllModels\n");
   t1 = Sys.time();
@@ -171,12 +173,12 @@ evalAllModels<-function(mdl,
   col_weights = as.character(mdl$cl["weights"]); #if (col_weights=="NULL") col_weights = NULL;
   sym_col_offsets = sym(col_offsets);
   sym_col_weights = sym(col_weights);
-  cat("offsets, weights in columns",col_offsets,col_weights,"\n");
+  if (verbose) cat("offsets, weights in columns",col_offsets,col_weights,"\n");
   #--gam options (same as "full" model)
   str_method = mdl_env$str_method;
-  cat("str_method =",str_method,"\n")
+  if (verbose) cat("str_method =",str_method,"\n")
   lgl_select = mdl_env$lgl_select;
-    cat("lgl_select =",lgl_select,"\n")
+  if (verbose) cat("lgl_select =",lgl_select,"\n")
   
   #--get column names for testing dataset
   col_respons = resp;#--same as for training dataset
@@ -211,7 +213,7 @@ evalAllModels<-function(mdl,
                  .export=c("createModelFormula","calcLogLike.binomial","calcLogLike.tw"),
                  .packages=c("mgcv","tibble")) %dopar% {
     if (doParallel&&(log||debug)) sink(logfile, append=TRUE);
-    cat("\n\nicmbs for next model:",paste(as.vector(t(cmbs[i,])),collapse=" "),"\n");
+    if (log||debug) cat("\n\nicmbs for next model:",paste(as.vector(t(cmbs[i,])),collapse=" "),"\n");
     idx = as.logical(as.vector(t(cmbs[i,])));
     if (log||debug) cat(paste0("Evaluating model ",i,": ",paste(mdlsmths[idx],collapse=" + "),"\n"));
     frmla  = createModelFormula(resp,
@@ -421,7 +423,7 @@ evalAllModels<-function(mdl,
   if (log||debug) {
     t2 = Sys.time();
     cat(paste0("Finished evalAllModels logging at ",t2,"\n"), file=logfile, append=TRUE);
-    if (!doParallel) cat(paste0("Elapsed time was ",t2-t1,"\n"),file=logfile, append=TRUE);
+    if (!doParallel && verbose) cat(paste0("Elapsed time was ",t2-t1,"\n"),file=logfile, append=TRUE);
   }
 
   
