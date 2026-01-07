@@ -78,4 +78,7 @@ fitF = gearcalibFit(dF,fit0=TRUE);
 botF = boot(dF);
 pltF = plot.gearcalibFit(fitF,boot=botF,Lvec=zF,ymax=1)
 
+res = list(m=list(fit=fitM,boot=botM,plots=pltM),
+           f=list(fit=fitF,boot=botF,plots=pltF));
+wtsUtilities::saveObj(res,file.path(dirThs,"results.RData"));
 
