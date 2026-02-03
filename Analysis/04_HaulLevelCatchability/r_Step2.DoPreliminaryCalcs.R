@@ -1,8 +1,9 @@
 #--subset haul-level data----
+require(ggplot2);
 
 #--read project setup info----
 dirPrj = rstudioapi::getActiveProject();
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability")
 fn = file.path(dirPrj,"rda_ProjectSetup.RData");
 s  = wtsUtilities::getObj(fn);
 
@@ -28,7 +29,7 @@ dfrDat = dfrPropsAllYears |>
 #'
 #' @description Function to edit data for outlier areas swept ratios.
 #'
-#' @param dfrDat - tibble with proprtion data to edit
+#' @param dfrDat - tibble with proportion data to edit
 #' @param qs - 3-element vector with min ASR, nominal ASR, max ASR
 #'
 #' @return list
@@ -106,7 +107,7 @@ check_ASRs<-function(dfrDat,ASRs,maxASR=20){
 #'
 #' @export
 #'
-selectSizeData<-function(dfrDat,n_min){
+selectSizeData<-function(dfrDat,n_min,facet_scales="free_y"){
   #--subset the data based on minimum number of individuals caught
   dfrDatpp = dfrDat |> dplyr::filter(n>=n_min);
 
@@ -115,14 +116,14 @@ selectSizeData<-function(dfrDat,n_min){
         ggplot2::geom_point(position=ggplot2::position_jitter(width=1)) +
         ggplot2::geom_point(data=dfrDat |> dplyr::anti_join(dfrDatpp,by=NULL),mapping=ggplot2::aes(x=z,y=lnR,size=n),
                             position=position_jitter(width=1),colour="black") +
-        ggplot2::facet_grid(x~.,scales="free_y")+
+        ggplot2::facet_grid(x~.,scales=facet_scales)+
         labs(x="size (mm CW)",y="log(R) = logit(phi)-ln(q)");
   # print(p1);
 
   #--plot data that will be fit
   p2 = ggplot2::ggplot(data=dfrDatpp,mapping=ggplot2::aes(x=z,y=lnR,colour=y,size=n))+
         ggplot2::geom_point(position=ggplot2::position_jitter(width=1)) +
-        ggplot2::facet_grid(x~.,scales="free_y")+
+        ggplot2::facet_grid(x~.,scales=facet_scales)+
         labs(x="size (mm CW)",y="log(R) = logit(phi)-ln(q)");
   # print(p2);
   return(list(dfrDat=dfrDatpp,ps=list(p1=p1,p2=p2)));
@@ -136,7 +137,7 @@ lst1$ASRs = ASRs;
 
 #----drop cells with < n_min individuals
 n_min = 5;
-lst2 = selectSizeData(lst1$dfrDat,n_min=n_min);
+lst2 = selectSizeData(lst1$dfrDat,n_min=n_min,facet_scales="fixed");
 lst2$n_min = n_min;
 
 #--save results----

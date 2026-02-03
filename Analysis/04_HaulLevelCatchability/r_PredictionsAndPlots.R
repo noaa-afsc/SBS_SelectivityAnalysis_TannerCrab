@@ -56,7 +56,7 @@ prdMod<-function(mdl,trms,lst,type="link",keep=NULL,p=0.05){
 #' @export
 #' 
 plotMod<-function(tmp,ylims=c(0,1.5)){
-  if (all(is.na(tmp$y))) tmp$y = "all";
+  if (("y" %in% names(tmp))&&all(is.na(tmp$y))) tmp$y = "all";
   p = ggplot(tmp,aes(x=z,y=emp_sel,ymin=lci,ymax=uci,colour=terms,fill=terms));
   if ("n" %in% names(tmp)){
     p = p + geom_point(aes(size=n)) + scale_size_area() + 

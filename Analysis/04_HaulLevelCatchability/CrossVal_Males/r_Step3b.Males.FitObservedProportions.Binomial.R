@@ -6,7 +6,9 @@ require(gratia)
 require(mgcv);
 
 #--get censored data and prediction grids----
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability/CrossVal_Males");
+setwd(dirThs);
 lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3a.CensoredDataAndGridsList.Males.RData"));
 
 #--remove zeros, infs, questionable observed Rs----
@@ -15,12 +17,12 @@ dfrDatp   = lst$dfrDat |> dplyr::filter(between(z,15,150));
 #--BINOMIAL regression  models for lnR----
 famB = stats::binomial(link="logit");
 #--------ALL Z 2-WAY INTERACTIONS--------------------------
-  #--ln(r) = ti(z) + 
+  #--lgtp = s(z) + 
  #--         ti(d) + ti(t) + ti(f) + ti(s) +
   #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
   ks=c(20,10);
   k1 = ks[1]; k2 = ks[2];
-  frmla  = p~ti(z,bs="ts",k=k1)   +
+  frmla  = p~s(z,bs="ts",k=k1)   +
              ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
              ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
   # frmla  = p~ti(z,bs="ts",k=k1)   +
@@ -42,7 +44,7 @@ if (FALSE){
     mdl,
     ks,
     dfrData=dfrDatp,
-    col_link="lnR",
+    col_link="lgtp",
     numFolds=20,
     selectBy="by_obs",
     concrv_opt=2,

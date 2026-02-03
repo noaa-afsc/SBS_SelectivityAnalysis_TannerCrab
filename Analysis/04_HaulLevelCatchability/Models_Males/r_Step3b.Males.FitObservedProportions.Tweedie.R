@@ -112,7 +112,7 @@ if (FALSE){
   ks=c(10,8);
   k1 = ks[1]; k2 = ks[2];
   frmla  = obsR~ti(z,bs="ts",k=k1) + ti(t,bs="ts",k=k2) + ti(f,bs="ts",k=k2) + 
-                  s(s,h,bs="fs",k=k2);
+                  s(s,h,bs="fs",k=k2);                                          # <==WHY a factor smooth on "s", not "z"??
   mdl_bestRE = mgcv::gam(frmla,family=famTW,data=dfrDatpp,select=TRUE,method="REML",
                          drop.unused.levels=FALSE);#--use for RE with "any" factor level
   wtsUtilities::saveObj(mdl_bestRE, file.path(dirThs,"rda_Step3b.TweedieModels_BestModelRE.RData"));

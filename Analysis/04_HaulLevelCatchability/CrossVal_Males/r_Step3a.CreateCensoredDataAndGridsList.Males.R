@@ -1,6 +1,8 @@
 #--create list with censored data and prediction grids
-
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+##--SET working dir to this file's folder!!
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability/CrossVal_Males");
+setwd(dirThs);
 
 #--get trimmed data----
 lst = wtsUtilities::getObj(file.path(dirThs,"../rda_Step2_TrimmedDataList.RData"));

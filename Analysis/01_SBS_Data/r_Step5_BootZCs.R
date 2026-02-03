@@ -1,5 +1,8 @@
 #--calculate survey size comps
 
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/01_SBS_Data");
+
 doStep5<-function(){
   require(ggplot2);
   require(rlang);
