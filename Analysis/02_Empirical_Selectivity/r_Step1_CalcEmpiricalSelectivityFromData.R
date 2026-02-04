@@ -1,6 +1,6 @@
 #--calculate empirical selectivity from data
 dirPrj = rstudioapi::getActiveProject();
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirThs = file.path(dirPrj,"Analysis/02_Empirical_Selectivity");
 #--define output filename
 ofn = file.path(dirThs,"rda_Step1_EmpiricalSelectivityFromData.RData");
 

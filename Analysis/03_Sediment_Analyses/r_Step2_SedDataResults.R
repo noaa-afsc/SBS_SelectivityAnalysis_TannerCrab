@@ -1,11 +1,15 @@
 #--sediment characteristics results
+require(ggplot2);
+
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/03_Sediment_Analyses");
 
 getSedResults<-function(){
   out = list();
   
   #--get haul data with appended sediment characteristics (1975-2023)
   #--see r_Step1_GetSedDataAtHaulLocations.R
-  lst = wtsUtilities::getObj("rda_Step1_SedDataAtAllNMFSHaulLocations.RData");
+  lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step1_SedDataAtAllNMFSHaulLocations.RData"));
   
   
   #--get normalized temp, phi, and sorting as a function of depth for SBS years
@@ -45,8 +49,9 @@ getSedResults<-function(){
   out = c(out,list(`fig-SedRes-TPSvD`=list(p=p,cap=cap)));
   rm(dfrHDpp,p);
   
-  wtsUtilities::saveObj(out,"rda_Step2_SedDataResults.RData");
   return(out);
 }
 out = getSedResults();
+wtsUtilities::saveObj(out,file.path(dirThs,"rda_Step2_SedDataResults.RData"));
+
 rm(out);

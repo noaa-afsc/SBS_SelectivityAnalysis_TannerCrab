@@ -1,13 +1,17 @@
 #--analyze variance to mean relationships for CPUE
+require(ggplot2);
+require(mgcv);
+
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/01_SBS_Data");
+source(file.path(dirThs,"r_Functions-Figures-Abundance.R"));
 
 calcStep4<-function(){
-  source("r_Functions-Figures-Abundance.R");
-  
   #--output list
   out = list();
   
   #--load crab abundance/CPUE results
-  lst = wtsUtilities::getObj("rda_Step3_SBS_CrabAbundance.RData");
+  lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3_SBS_CrabAbundance.RData"));
   dfrStatsCPUE = lst$dfrStatsCPUE;
   
 #| label: fig-VMRsCPUEMales
@@ -54,20 +58,22 @@ calcStep4<-function(){
                                           output="modelsummary_list")
   out = c(out,list(mdlSmryTWP=mdlSmryTWP));
 
+  #--calculate simulation residuals for DHARMa plots
+  srs = DHARMa::simulateResiduals(mdlTWPr,plot=FALSE);
+  
   #| label: fig-QQ-mdlTWP
   cap = "Quantile-quantile plot of scaled residuals [@DHARMa] from the reduced model used to estimate the Tweedie power coefficient for the observed CPUE data."
-  p = ggplotify::as.ggplot(~DHARMa::plotQQunif(mdlTWPr));
+  p = ggplotify::as.ggplot(~DHARMa::plotQQunif(srs));
   out = c(out,list(`fig-QQ-mdlTWP`=list(p=p,cap=cap)));
   
   #| label: fig-DRs-mdlTWP
   cap = "Scaled residuals [@DHARMa] from the reduced model used to estimate the Tweedie power coefficient for the observed CPUE data."
-  srs = DHARMa::simulateResiduals(mdlTWPr,plot=FALSE);
   p = ggplotify::as.ggplot(~DHARMa::plotResiduals(srs));
   out = c(out,list(`fig-DRs-mdlTWP`=list(p=p,cap=cap)));
   
   #--save objects
-  wtsUtilities::saveObj(out,"rda_Step4_SBS_VarVsMeanCPUE_Analysis.RData");
   return(out);
 }
 out = calcStep4();
+wtsUtilities::saveObj(out,file.path(dirThs,"rda_Step4_SBS_VarVsMeanCPUE_Analysis.RData"));
 #rm(out);

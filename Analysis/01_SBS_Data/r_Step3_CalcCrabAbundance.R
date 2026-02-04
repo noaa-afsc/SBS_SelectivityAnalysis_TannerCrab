@@ -1,20 +1,23 @@
 #--calculate various aspects of crab abundance
+require(ggplot2);
+require(rlang);
+require(tables);
+require(wtsSizeComps);
+  
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/01_SBS_Data");
+source(file.path(dirThs,"r_Functions-Figures-Abundance.R"));
+source(file.path(dirThs,"r_Functions-Calcs-Abundance.R"));
 
 calcCrabAbundance<-function(){
   #--calculate "raw" size comps for numbers caught by station and gear type
   #----DON'T use tcsamSurveyData functions for this (they scale by area swept)
-  require(ggplot2);
-  require(rlang);
-  require(tables);
-  require(wtsSizeComps);
-  source("r_Functions-Figures-Abundance.R")
-  source("r_Functions-Calcs-Abundance.R")
   
   #--create list for output----
   out = list();
 
   #--get haul-level data----
-  lst = wtsUtilities::getObj("rda_Step1_SBS_RawData.RData");
+  lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step1_SBS_RawData.RData"));
   
   #--define size bins----
   cutpts = seq(-0.5,204.5,5);
@@ -150,12 +153,13 @@ calcCrabAbundance<-function(){
   out = c(out,list(figCVsCPUEFemales=list(p=p,cap=cap)));
 
   #--save objects
-  wtsUtilities::saveObj(out,"rda_Step3_SBS_CrabAbundance.RData");
   return(out)
 
 }
 #--run function
 out = calcCrabAbundance();
+wtsUtilities::saveObj(out,file.path(dirThs,"rda_Step3_SBS_CrabAbundance.RData"));
+
 #--clean up
 rm(out,calcCrabAbundance);
 

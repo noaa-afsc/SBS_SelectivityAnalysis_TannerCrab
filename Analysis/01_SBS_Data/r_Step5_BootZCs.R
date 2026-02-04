@@ -1,21 +1,22 @@
 #--calculate survey size comps
+require(ggplot2);
+require(rlang);
+require(tables);
+require(wtsSizeComps);
 
 dirPrj = rstudioapi::getActiveProject();
 dirThs = file.path(dirPrj,"Analysis/01_SBS_Data");
+source(file.path(dirThs,"r_Functions-Calcs-Abundance.R"));
+source(file.path(dirThs,"r_Functions-Figures-Abundance.R"));
 
+doBootstraps = TRUE;
 doStep5<-function(){
-  require(ggplot2);
-  require(rlang);
-  require(tables);
-  require(wtsSizeComps);
-  source("r_Functions-Calcs-Abundance.R")
-  source("r_Functions-Figures-Abundance.R")
   
   #--create output list
   out = list();
   
   #--get haul-level data----
-  lst1 = wtsUtilities::getObj("rda_Step1_SBS_RawData.RData");
+  lst1 = wtsUtilities::getObj(file.path(dirThs,"rda_Step1_SBS_RawData.RData"));
 
   #--define size bins----
   cutpts = seq(from=24.5,to=184.5,by=5);
@@ -23,7 +24,6 @@ doStep5<-function(){
   out = c(out,list(cutpts=cutpts,zBs=zBs));
   
   #--do resampling, if necessary----
-  doBootstraps = FALSE;
   if (doBootstraps){
     doBootstraps<-function(){
       nB = 1000; #--number of bootstrap repetitions/year
@@ -162,15 +162,16 @@ doStep5<-function(){
                                    s=tolower(s),
                                    z=z+3.0,      #--shift to middle of size bin
                                    abd=1000*abd);#--now in 1,000's of crab
-      wtsUtilities::saveObj(dfrBootZCs,"rda_Step5_BootZCs.RData");
+      dfrBootZCs = dfrBootZCs |> dplyr::mutate(abd=abd/area); #--NOW in 1,000's/sq. nmi.
       return(dfrBootZCs)
     }
     dfrBootZCs = doBootstraps();
+    wtsUtilities::saveObj(dfrBootZCs,file.path(dirThs,"rda_Step5_BootZCs.RData"));
   } else {
-    dfrBootZCs = wtsUtilities::getObj("rda_Step5_BootZCs.RData");
+    if (!exists("dfrBootZCs"))
+      dfrBootZCs = wtsUtilities::getObj(file.path(dirThs,"rda_Step5_BootZCs.RData"));
   }
-  dfrBootZCs = dfrBootZCs |> dplyr::mutate(abd=abd/area); #--NOW in 1,000's/sq. nmi. [move into above!!]
-  
+
   nB = max(dfrBootZCs$bootrep);
   out = c(out,list(dfrBootZCs=dfrBootZCs,nB=nB));
 
@@ -268,8 +269,8 @@ doStep5<-function(){
   p = plotCVsCPUE(dfrStatsBZCs |> dplyr::filter(x=="female"),mn,sd,factor_=gear,ylab="Size Composition CVs",xlims=c(25,135));
   out = c(out,list(`fig-CVsBootZCs-Fs`=list(p=p,cap=cap)));
   
-  wtsUtilities::saveObj(out,"rda_Step5_BootZCs_AllResults.RData");
   return(out);
 }
 out = doStep5();
+wtsUtilities::saveObj(out,file.path(dirThs,"rda_Step5_BootZCs_AllResults.RData"));
 #rm(out);

@@ -3,7 +3,9 @@ require(ggplot2);
 require(sf)
 require(stars);
 
-dirThs = dirname((rstudioapi::getActiveDocumentContext())$path);
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/03_Sediment_Analyses/02_SedimentAnalyses");
+
 
 #--get layers from SedimentsAnalysis.gdb ArcGIS file geodatabase
 dsn  = file.path(dirThs,"../SedimentsAnalysis.gdb");
@@ -59,7 +61,11 @@ p_phi2 = ggplot()+
         bmls$map_scale +
         bmls$theme;
 pg = ggpubr::ggarrange(p_phi1,p_phi2,ncol=1,common.legend=TRUE,legend="right");
-ggsave("./Figures/fig01_MapPhi.png",pg,device="png",width=6.5,height=6.5,units="in");
+cap=paste0("Upper: Mean sediment grain size (phi units) from the EBSSED2 database. ",
+           "Lower: Distribution of mean grain size (phi units), based on interpolation of the above data by kriging.")
+#ggsave("./Figures/fig01_MapPhi.png",pg,device="png",width=6.5,height=6.5,units="in");
+out = list();
+out$phi = list(p=pg,cap=cap,p_upr=p_phi1,p_lwr=p_phi2);
 
 #--map sorting data
 p_srt1 = ggplot()+
@@ -81,4 +87,10 @@ p_srt2 = ggplot()+
         bmls$map_scale +
         bmls$theme;
 pg = ggpubr::ggarrange(p_srt1,p_srt2,ncol=1,common.legend=TRUE,legend="right");
-ggsave("./Figures/fig02_MapSorting.png",pg,device="png",width=6.5,height=6.5,units="in");
+cap=paste0("Upper: Sediment sorting coefficient from the EBSSED2 database. ",
+           "Lower: Distribution of the sorting coefficient, based on interpolation of the above data by kriging.")
+#ggsave("./Figures/fig02_MapSorting.png",pg,device="png",width=6.5,height=6.5,units="in");
+out$srt = list(p=pg,cap=cap,p_upr=p_srt1,p_lwr=p_srt2);
+wtsUtilities::saveObj(out,file.path(dirThs,"rda_Step01_InterpolatedSedimentCharacteristicsMaps.RData"));
+
+

@@ -1,9 +1,14 @@
 #--extract sediment characteristics at all NMFS haul locations
+require(ggplot2);
+
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/03_Sediment_Analyses");
+
 getSedData<-function(){
   out = list();
   
   #--get interpolation rasters
-  top<-file.path("02_SedimentAnalyses","Rasters");
+  top<-file.path(dirThs,"02_SedimentAnalyses","Rasters");
   fns<-c("CoKr_EditedGrainSizeRaster.tif",
          "CoKr_EditedSortingRaster.tif");
   rasters<-list();
@@ -19,7 +24,7 @@ getSedData<-function(){
 
   #--get **all NMFS haul** data
   minYr = 1975;
-  maxYr = 2023;
+  maxYr = 2025;
   verbosity   = 0;
 
   #--NMFS data
@@ -63,11 +68,11 @@ getSedData<-function(){
   dfrHD = cbind(dfrHD,sorting=stars::st_extract(rasters[[2]],dfrHD)[[1]]);
   out = c(out,list(dfrHD=dfrHD));
   
-  wtsUtilities::saveObj(out,"rda_Step1_SedDataAtAllNMFSHaulLocations.RData");
   rm(dfrHaulData_NMFS, dfrHD_NMFS, dfrSD, dirData_NMFS, fnHaulData_NMFS, fnStrata);
   
   return(out);
 }
 out = getSedData();
+wtsUtilities::saveObj(out,file.path(dirThs,"rda_Step1_SedDataAtAllNMFSHaulLocations.RData"));
 rm(out);
 

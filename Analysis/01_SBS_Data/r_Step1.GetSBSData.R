@@ -1,6 +1,6 @@
 #--Extract SBS data for analysis
 dirPrj = rstudioapi::getActiveProject();
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirThs = file.path(dirPrj,"Analysis/01_SBS_Data");
 
 #--SBS data
 dirData_BSFRF   <-"~/Work/StockAssessments-Crab/Data/Survey.BSFRF/AllSurveys_TannerCrab";

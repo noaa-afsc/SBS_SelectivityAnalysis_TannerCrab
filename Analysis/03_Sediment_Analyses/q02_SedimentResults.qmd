@@ -149,6 +149,34 @@ params:
 
 Mean grain size and sorting coefficient varied across the EBS (Figures [-@fig-SedMeths-PhiMap] and [-@fig-SedMeths-SortingMap]). At NMFS SBS haul locations, mean grain size and sorting coefficient were positively correlated with each other ($\rho=0.571$) and haul depth ($\rho=0.530$ and 0.433, respectively) but negatively correlated with bottom temperature ($\rho=-0.530$ and -0.482; [@fig-SedRes-PairsPlot]). Although the correlations themselves were significantly different from 0, none approached a level that precluded the use of the individual datasets as covariates in the haul-level selectivity analysis.
 
+```{r SedRes_GetMaps}
+  lstSedMaps = wtsUtilities::getObj(file.path(prj_setup$dirs$SedAnls,"02_SedimentAnalyses/rda_Step01_InterpolatedSedimentCharacteristicsMaps.RData"));
+```
+
+```{r}
+#| label: fig_SedMeths-PhiMap
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 1.2
+  p   = lstSedMaps$phi$p;
+  cap = lstSedMaps$phi$cap;
+  lbl = wtsQMD::getLabel();
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
+```{r}
+#| label: fig_SedMeths-SortingMap
+#| results: asis
+#| fig-width: 6.5
+#| fig-asp: 1.2
+  p   = lstSedMaps$srt$p;
+  cap = lstSedMaps$srt$cap;
+  lbl = wtsQMD::getLabel();
+  pth = wtsQMD::getFigFN();
+  lstFigs = c(lstFigs,wtsQMD::printGGplot(p,lbl=lbl,cap=cap,pth=pth,ori="P"));
+```
+
 ```{r fig_SedRes-PairsPlot}
 #| results: asis
 #| fig-cap: "Pairs plot showing correlations among depth, bottom temperature, and interpolated mean grain size ('phi', in phi units) and sorting coefficient sediment characteristics at NMFS SBS haul locations (2013-2018)."
