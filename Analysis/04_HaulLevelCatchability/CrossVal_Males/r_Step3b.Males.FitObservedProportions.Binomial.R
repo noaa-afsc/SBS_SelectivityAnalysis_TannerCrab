@@ -55,6 +55,7 @@ if (FALSE){
     log=TRUE,
     debug=TRUE
   );
+  #--COPY logX.txt and resultsX.RData files to ../ModelResults_BinomialModels
 }
 
 # if (FALSE){
@@ -128,7 +129,7 @@ if (FALSE){
   ggsave(file.path(dirThs,"pltBestModels.Males.Binomial.pdf"),plot=p1,width=6.5,height=4)
   
   #--evaluate best model
-  best_smth = "s(z)+ti(d)+ti(t)+ti(f)+ti(s)";#--user must determine this based on results above
+  best_smth = "s(z)+ti(d)+ti(t)+ti(s)+ti(z,f)";#--user must determine this based on results above
   best_idx  = (dfrMnScrs |> dplyr::filter(smths==best_smth))$i;
   best_mdl = evalBestModel(mdl,ks,best_idx);
   wtsUtilities::saveObj(best_mdl,file.path(dirThs,"rda_Step3b3b.BinomialModels_BestModel.RData"));
