@@ -1,5 +1,6 @@
 #--get indiv data with sediment characteristics for all 83-112 NMFS hauls----
-  dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability")
 
   #--get NMFS individual data----
   require(tcsamSurveyData);
@@ -8,7 +9,7 @@
   fnHaulData_NMFS = file.path(dirData_NMFS,"TannerCrab_HaulData.csv");
   verbosity       = 0;
   minYr = 1982;
-  maxYr = 2024;
+  maxYr = 2025;
   
   ##--read NMFS strata definitions and create NMFS strata table for SBS years----
   dfrStrata<-readr::read_csv(fnStrata) |>

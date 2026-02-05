@@ -21,7 +21,7 @@ famTW = mgcv::tw(link="log");
   #--ln(r) = s(z) + 
  #--         ti(d) + ti(t) + ti(f) + ti(s) +
   #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
-  ks=c(20,10);
+  ks=c(10,5);
   k1 = ks[1]; k2 = ks[2];
   frmla  = obsR~s(z,bs="ts",k=k1)   +
                  ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
@@ -100,7 +100,7 @@ if (FALSE){
   #--compare top 5 models + base by scores
   if (!exists("dfrScrs"))   dfrScrs   = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b2.LnTweedieModels_Scrs.RData"));
   if (!exists("dfrMnScrs")) dfrMnScrs = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b3a.LnTweedieModels_MnScrs.RData"));
-  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"s(z)"));
   p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
                 dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
               aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
@@ -116,7 +116,7 @@ if (FALSE){
   ggsave("pltBestModels.Males.LnTweedie.pdf",plot=p1,width=6.5,height=4);
   
   #--evaluate best model
-  best_smth = "s(z)+ti(z,t)";#--user must determine this based on results above
+  best_smth = "s(z)+ti(t)+ti(f)+ti(z,d)";#--user must determine this based on results above
   best_idx  = (dfrMnScrs |> dplyr::filter(smths==best_smth))$i;
   best_mdl = evalBestModel(mdl,ks,best_idx);
   wtsUtilities::saveObj(best_mdl,file.path(dirThs,"rda_Step3b3b.LnTweedieModels_BestModel.RData"));

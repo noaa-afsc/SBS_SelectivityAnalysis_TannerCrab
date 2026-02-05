@@ -6,22 +6,23 @@ require(gratia)
 require(mgcv);
 
 #--get censored data and prediction grids----
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability/Models_Males")
 lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3a.CensoredDataAndGridsList.Males.RData"));
 
 #--remove zeros, infs, questionable observed Rs----
 #dfrDatp   = lst$dfrDat |> dplyr::filter(obsR<10, is.finite(lnR),between(z,15,150));
 dfrDatp   = lst$dfrDat |> dplyr::filter(between(z,15,150));
 
-#--BINOMIAL regression  models for lnR----
+#--BINOMIAL regression  models for proportions p----
 famB = stats::binomial(link="logit");
 #--------ALL Z 2-WAY INTERACTIONS--------------------------
-  #--ln(r) = ti(z) + 
+  #--p = s(z) + 
  #--         ti(d) + ti(t) + ti(f) + ti(s) +
   #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
   ks=c(20,10);
   k1 = ks[1]; k2 = ks[2];
-  frmla  = p~ti(z,bs="ts",k=k1)   +
+  frmla  = p~s(z,bs="ts",k=k1)   +
              ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
              ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
   mdlB_ZE2D  = mgcv::gam(frmla,family=famB,data=dfrDatp,select=TRUE,method="REML",fit=FALSE,
@@ -30,7 +31,7 @@ famB = stats::binomial(link="logit");
 #--run cross-validation using concurvity and other criteria to rank models
 if (FALSE){
   source(file.path(dirThs,"../r_gam.prefit.functions.R"));
-  source(file.path(dirThs,"../r_SelectModelByConcurvityFunctions.R"));
+  source(file.path(dirThs,"../r_RunCrossValidationFunctions.R"));
 #--run cross validation-------------------------------------------------
   set.seed(1111111);
   mdl = mdlB_ZE2D;
@@ -38,6 +39,7 @@ if (FALSE){
                  mdl,
                  ks,
                  dfrData=dfrDatp,
+                 col_link="p",
                  numFolds=10,
                  concrv_opt=2,
                  doParallel=TRUE,

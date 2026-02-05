@@ -91,7 +91,7 @@ runCrossValidation<-function(mdl,
   for (fld in startFold:numFolds){
     #--testing: fld = 1;
     cat("Running fold",fld,"\n");
-    if (selectBy=="hauls"){
+    if (selectBy=="by_haul"){
       #--select testing set by hauls (h) in fold, training set by obverse
       hlsTst = (uniqHauls |> dplyr::filter(fold==fld))[["h"]];
       dfrTst = dfrData |> dplyr::filter(h %in% hlsTst);

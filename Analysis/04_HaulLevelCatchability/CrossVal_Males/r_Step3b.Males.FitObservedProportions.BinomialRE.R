@@ -1,4 +1,4 @@
-#--fit various models for ln(r) using mgcv to fit GAMs for males using the BINOMIAL distribution----
+#--fit random effects model for logit-scale proportions p using mgcv to fit GAMs for males using the BINOMIAL distribution----
 require(DHARMa);
 require(dplyr);
 require(ggplot2);
@@ -17,17 +17,13 @@ dfrDatp   = lst$dfrDat |> dplyr::filter(between(z,15,150));
 lvls = c("any",unique(dfrDatp$h));
 dfrDatpp = dfrDatp |> dplyr::mutate(h=factor(h,levels=lvls));
 
-#--BINOMIAL regression  models for lnR----
+#--BINOMIAL regression  models for logit-scale proportions p----
 famB = stats::binomial(link="logit");
-#--------ALL Z 2-WAY INTERACTIONS--------------------------
-  #--lgtp = s(z) + 
- #--         ti(d) + ti(t) + ti(f) + ti(s) +
-  #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
-  # ks=c(20,10);
+#--------MAIN SMOOTH(Z) + factor smooth REs by haul--------------------------
+  #--lgtp = s(z,bs="ts",k=k1) + ti(z,h,bs="fs",k=k1)
+  # ks=c(10,8);
   # k1 = ks[1]; k2 = ks[2];
-  # frmla  = p~s(z,bs="ts",k=k1)   +
-  #            ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
-  #            ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
+  # frmla  = p = s(z,bs="ts",k=k1) + ti(z,h,bs="fs",k=k1)
   ks=c(10,8);
   k1 = ks[1]; k2 = ks[2];
   frmla  = p~s(z,bs="ts",k=k1) + ti(z,h,bs="fs",k=k1);

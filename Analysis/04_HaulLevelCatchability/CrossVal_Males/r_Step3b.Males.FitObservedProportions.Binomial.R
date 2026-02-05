@@ -1,4 +1,4 @@
-#--fit various models for ln(r) using mgcv to fit GAMs for males using the BINOMIAL distribution----
+#--fit various models for logit-scale proportions p using mgcv to fit GAMs for males using the BINOMIAL distribution----
 require(DHARMa);
 require(dplyr);
 require(ggplot2);
@@ -14,13 +14,13 @@ lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3a.CensoredDataAndGridsList
 #--remove zeros, infs, questionable observed Rs----
 dfrDatp   = lst$dfrDat |> dplyr::filter(between(z,15,150));
 
-#--BINOMIAL regression  models for lnR----
+#--BINOMIAL regression  models for proportions p with logit link----
 famB = stats::binomial(link="logit");
 #--------ALL Z 2-WAY INTERACTIONS--------------------------
   #--lgtp = s(z) + 
  #--         ti(d) + ti(t) + ti(f) + ti(s) +
   #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
-  ks=c(20,10);
+  ks=c(10,5);
   k1 = ks[1]; k2 = ks[2];
   frmla  = p~s(z,bs="ts",k=k1)   +
              ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
@@ -66,17 +66,26 @@ if (FALSE){
   
 if (FALSE){
   #--process cross-validation folds to extract scores
-  dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
   numFolds = 20;
   lstCrsVal = list();
   for (f in 1:numFolds){
-    dfrFld = wtsUtilities::getObj(file.path(dirThs,"ModelResults_BinmoialModels",
+    dfrFld = wtsUtilities::getObj(file.path(dirThs,"ModelResults_BinomialModels",
                                             paste0("fold_",f,".RData"))) |> 
                dplyr::select(!c(lstMdl,lstTrn,lstTst));
     lstCrsVal[[f]] = dfrFld;
     rm(dfrFld)
   }
   dfrScrs = dplyr::bind_rows(lstCrsVal);
+  # mdlsmths  = gratia::smooths(mdl_ZE2D);
+  # cmbs = getCombs(mdlsmths);
+  # icmbs = 1:nrow(cmbs);
+  # for (i in icmbs){
+  #   idx = as.logical(as.vector(t(cmbs[i,])));
+  #   smths=paste(mdlsmths[idx],collapse="+");
+  #   cat(i,smths,"\n")
+  #   idxp = (dfrScrs$i==i);
+  #   dfrScrs$smths[idxp] = smths;
+  # }
   rm(lstCrsVal);
   wtsUtilities::saveObj(dfrScrs,file.path(dirThs,"rda_Step3b2.BinomialModels_Scrs.RData"));
 }
@@ -94,7 +103,7 @@ if (FALSE){
                 dplyr::summarize(n=n(),
                                 mnScrTst=mean(scrTst),
                                 mnAIC=mean(aic),
-                                mnRsrPrd=mean(rsqr_prd),
+                                mnRsqrPrd=mean(rsqr_prd),
                                 numConcrvTst=sum(concrv_tst)) |> 
                 dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
                 dplyr::filter(n>18,numConcrvTst>10) |> 
@@ -102,7 +111,7 @@ if (FALSE){
   wtsUtilities::saveObj(dfrMnScrs,file.path(dirThs,"rda_Step3b3a.BinomialModels_MnScrs.RData"));
   
   #--compare top 5 models + base by scores
-  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"s(z)"));
   p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
                 dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
               aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
@@ -115,10 +124,11 @@ if (FALSE){
          wtsPlots::getStdTheme() + 
          theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
                axis.title.x=element_blank());
-  ggsave("pltBestModels.Males.Binomial.pdf",plot=p1,width=6.5,height=4)
+  p1;
+  ggsave(file.path(dirThs,"pltBestModels.Males.Binomial.pdf"),plot=p1,width=6.5,height=4)
   
   #--evaluate best model
-  best_smth = "ti(z)+ti(t)+ti(f)";#--user must determine this based on results above
+  best_smth = "s(z)+ti(d)+ti(t)+ti(f)+ti(s)";#--user must determine this based on results above
   best_idx  = (dfrMnScrs |> dplyr::filter(smths==best_smth))$i;
   best_mdl = evalBestModel(mdl,ks,best_idx);
   wtsUtilities::saveObj(best_mdl,file.path(dirThs,"rda_Step3b3b.BinomialModels_BestModel.RData"));
@@ -134,7 +144,7 @@ if (FALSE){
   plts1 = plotModelSmooths(best_mdl);
   
   grdPrd = list(z=lst$grids$z,d=lst$meds$d,t=lst$meds$t,f=lst$meds$f,s=lst$meds$s,h=factor("any"))
-  dfrPrd = prdMod(best_mdl,trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+  dfrPrd = prdMod(best_mdl,trms=c("(Intercept)","s(z)"),type="link",lst=grdPrd,p=0.10) |> 
             dplyr::mutate(emp_sel=exp(emp_sel),
                           lci=exp(lci),
                           uci=exp(uci));
@@ -153,7 +163,7 @@ if (FALSE){
   source(file.path(dirThs,"../r_PredictionsAndPlots.R"));
   mdl = mdl_ZE2D;
   dfrMnScrs = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b3a.BinomialModels_MnScrs.RData"));
-  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"s(z)"));
   lstMdls = list();
   for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
     #--sel_mdl = sel_mdls[!is.na(sel_mdls)][1];
@@ -164,7 +174,7 @@ if (FALSE){
   grdPrd = list(z=lst$grids$z,d=lst$meds$d,t=lst$meds$t,f=lst$meds$f,s=lst$meds$s,h=factor("any"));
   lstPrd = list();
   for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
-    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","s(z)"),type="link",lst=grdPrd,p=0.10) |> 
                            dplyr::mutate(trms=sel_mdl);
   }
   dfrPrd = dplyr::bind_rows(lstPrd) |> 

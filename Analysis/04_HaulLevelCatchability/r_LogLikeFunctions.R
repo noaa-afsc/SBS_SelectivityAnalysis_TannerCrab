@@ -53,11 +53,11 @@ if (FALSE){
 famB = stats::binomial(link="logit");
 ks=c(20,10);
 k1 = ks[1]; k2 = ks[2];
-frmla  = p~ti(z,bs="ts",k=k1)   +
+frmla  = p~s(z,bs="ts",k=k1)   +
            ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2);
 fitp  = mgcv::gam(frmla,family=famB,data=dfrDatp,method="ML",fit=TRUE,offset=lnq,weights=n);
 prdp = unname(predict(fitp,dfrDatp,"response"));
-sum(calcLogLike.binomial(dfrDatp$p,dfrDatp$n,prdp,famB,offsets=dfrDatp$lnq));
+sum(calcLogLike.binomial(dfrDatp$p,dfrDatp$n,prdp,famB,offsets=dfrDatp$lnq),na.rm=TRUE);
 logLik(fitp);
 }
 
@@ -132,7 +132,7 @@ frmla  = obsR~ti(z,bs="ts",k=k1)   +
                 ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2);
 fitp  = mgcv::gam(frmla,family=famTW,data=dfrDatp,method="ML",fit=TRUE);
 prdp = as.vector(unname(predict(fitp,dfrDatp,"response")));
-sum(calcLogLike.tw(dfrDatp$obsR,prdp,famTW,rho=log(fitp$scale),offsets=fitp$offset));
+sum(calcLogLike.tw(dfrDatp$obsR,prdp,famTW,rho=log(fitp$scale),offsets=fitp$offset),na.rm=TRUE);
 logLik(fitp);
 }
 

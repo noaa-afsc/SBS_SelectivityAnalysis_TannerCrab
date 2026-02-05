@@ -261,6 +261,7 @@ evalAllModels<-function(mdl,
         sigidxs = -1;
         sigvals = -1;
       } else {
+        #--evaluate model with training (in-sample) data/predictions----
         if (debug) {cat("\nSummary:\n"); print(mdl_smry);}
         rsqr = mdl_smry$r.sq;
         aic  = AIC(mdlres);
@@ -277,8 +278,14 @@ evalAllModels<-function(mdl,
           stop(paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized."));
         }
         llMdl  = as.numeric(logLik(mdlres));
-        llTrn  = sum(llsTrn);
-        scrTrn = sum(llsTrn)/length(prd_rsp);
+        idxp   = is.finite(llsTrn);#--indices for finite likelihood scores for training (in-sample) data/predictions
+        if (any(idxp)){
+          llTrn  = sum(llsTrn[idxp]); #--total (finite-only) likelihood score for training (in-sample) data/predictions
+          scrTrn = llTrn/sum(idxp);   #--mean  (finite-only) likelihood score for training (in-sample) data/predictions
+        } else {
+          llTrn  = NA_real_;
+          scrTrn = NA_real_;
+        }
         tblTrn = tibble::tibble(obs_rsp=obs_rsp,
                                 prd_rsp=prd_rsp,
                                 obs_lnk=dfrTrain[[col_link]],
@@ -314,7 +321,8 @@ evalAllModels<-function(mdl,
         }
       }#--is.null(mdl_smry)
       
-      #--test for concurvity
+      #--evaluate model with testing (out-of-sample) data/predictions----
+      ##--test for concurvity
       concrv_tst = TRUE;
       concrv_idx = -1;
       concrv_val = -1;
@@ -363,8 +371,11 @@ evalAllModels<-function(mdl,
           cat( paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized.\n"));
           stop(paste0("evalAllModels failure: model family '",mdlres$family$family,"'is not recognized."));
         }
-        llTst  = sum(llsTst);
-        scrTst = llTst/length(prd_rsp);
+        idxp = is.finite(llsTst);#--indices for finite likelihood scores for testing (out-of-sample) data/predictions
+        if (any(idxp)){
+          llTst  = sum(llsTst[idxp]); #--total (finite) likelihood for testing (out-of-sample) data/predictions
+          scrTst = llTst/sum(idxp);   #--mean  (finite) likelihood for testing (out-of-sample) data/predictions
+        }
         tblTst = tibble::tibble(y=dfrTest$y,h=dfrTest$h,
                                 d=dfrTest$d,t=dfrTest$t,f=dfrTest$f,s=dfrTest$s,
                                 z=dfrTest$z,x=dfrTest$x,
