@@ -4,7 +4,8 @@ require(dplyr);
 require(ggplot2);
 require(gratia)
 require(mgcv);
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability/CrossVal_Females");
 source(file.path(dirThs,"..","r_PredictionsAndPlots.R"));
 
 #--get prediction grids----

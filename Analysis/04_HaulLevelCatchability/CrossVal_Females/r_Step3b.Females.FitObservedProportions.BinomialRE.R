@@ -26,6 +26,7 @@ famB = stats::binomial(link="logit");
   ks=c(10,8);
   k1 = ks[1]; k2 = ks[2];
   frmla  = p~s(z,bs="ts",k=k1) + ti(z,h,bs="fs",k=k1);
+
 if (FALSE){
   mdl_ZE2D  = mgcv::gam(frmla,family=famB,data=dfrDatpp,select=FALSE,method="ML",fit=TRUE,
                         offset=lnq,weights=n,drop.unused.levels=FALSE);
