@@ -89,7 +89,7 @@ if (FALSE){
                   dplyr::summarize(n=n(),
                                   mnScrTst=mean(scrTst),
                                   mnAIC=mean(aic),
-                                  mnRsrPrd=mean(rsqr_prd),
+                                  mnRsqrPrd=mean(rsqr_prd),
                                   numConcrvTst=sum(concrv_tst)) |> 
                   dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
                   dplyr::filter(n>18,numConcrvTst>10) |> 
@@ -113,6 +113,7 @@ if (FALSE){
          wtsPlots::getStdTheme() + 
          theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
                axis.title.x=element_blank());
+  p1;
   ggsave("pltBestModels.Males.LnTweedie.pdf",plot=p1,width=6.5,height=4);
   
   #--evaluate best model

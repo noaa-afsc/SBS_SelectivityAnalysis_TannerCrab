@@ -6,7 +6,9 @@ require(gratia)
 require(mgcv);
 
 #--get censored data and prediction grids----
-dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
+dirPrj = rstudioapi::getActiveProject();
+dirThs = file.path(dirPrj,"Analysis/04_HaulLevelCatchability/CrossVal_Females");
+setwd(dirThs);
 lst = wtsUtilities::getObj(file.path(dirThs,"rda_Step3a.CensoredDataAndGridsList.Females.RData"));
 
 #--remove zeros, infs, questionable observed Rs----
@@ -15,16 +17,14 @@ dfrDatp   = lst$dfrDat |> dplyr::filter(obsR<10, between(z,15,130));
 #--TWEEDIE (using mgcv::tw) regression  models for lnR----
 famTW = mgcv::tw(link="log");
 #--------ALL Z 2-WAY INTERACTIONS--------------------------
-  #--ln(r) = ti(z) + 
+  #--ln(r) = s(z) + 
  #--         ti(d) + ti(t) + ti(f) + ti(s) +
   #--        ti(z,d) + ti(z,t) + ti(z,f) +ti(z,s)
-  ks=c(10,8);
+  ks=c(10,5);
   k1 = ks[1]; k2 = ks[2];
-  frmla  = obsR~ti(z,bs="ts",k=k1)   +
+  frmla  = obsR~s(z,bs="ts",k=k1)   +
                  ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2)   + ti(f,bs="ts",k=k2)   + ti(s,bs="ts",k=k2) +
                  ti(z,d,bs="ts",k=c(k1,k2)) + ti(z,t,bs="ts",k=c(k1,k2)) + ti(z,f,bs="ts",k=c(k1,k2)) + ti(z,s,bs="ts",k=c(k1,k2));
-  # frmla  = obsR~ti(z,bs="ts",k=k1)   +
-  #            ti(d,bs="ts",k=k2)   + ti(t,bs="ts",k=k2) ;
   mdl_ZE2D  = mgcv::gam(frmla,family=famTW,data=dfrDatp,select=FALSE,method="ML",fit=FALSE);
 
 #--run cross-validation using concurvity and other criteria to rank models
@@ -52,11 +52,11 @@ if (FALSE){
     log=TRUE,
     debug=TRUE
   );
+  #--COPY logX.txt and resultsX.RData files to ../ModelResults_LnTweedieModels
 }
 
 if (FALSE){
   #--process cross-validation folds to extract scores
-  dirThs = dirname(rstudioapi::getActiveDocumentContext()$path);
   numFolds = 20;
   lstCrsVal = list();
   for (f in 1:numFolds){
@@ -77,22 +77,26 @@ if (FALSE){
   source(file.path(dirThs,"../r_EvalAllModelsFunctions.R"));
   source(file.path(dirThs,"../r_EvalBestModel.R"));
   mdl = mdl_ZE2D;
-  if (!exists("dfrScrs")) dfrScrs = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b2.LnTweedieModels_Scrs.RData"));
-
-  #--calculate mean scores
-  dfrMnScrs = dfrScrs |> dplyr::group_by(i,smths) |> 
-                dplyr::summarize(n=n(),
-                                mnScrTst=mean(scrTst),
-                                mnAIC=mean(aic),
-                                mnRsrPrd=mean(rsqr_prd),
-                                numConcrvTst=sum(concrv_tst)) |> 
-                dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
-                dplyr::filter(n>18,numConcrvTst>10) |> 
-                dplyr::arrange(dplyr::desc(mnScrTst));
-  wtsUtilities::saveObj(dfrMnScrs,file.path(dirThs,"rda_Step3b3a.LnTweedieModels_MnScrs.RData"));
+  if (FALSE){
+    if (!exists("dfrScrs")) dfrScrs = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b2.LnTweedieModels_Scrs.RData"));
+    
+    #--calculate mean scores
+    dfrMnScrs = dfrScrs |> dplyr::group_by(i,smths) |> 
+                  dplyr::summarize(n=n(),
+                                  mnScrTst=mean(scrTst),
+                                  mnAIC=mean(aic),
+                                  mnRsqrPrd=mean(rsqr_prd),
+                                  numConcrvTst=sum(concrv_tst)) |> 
+                  dplyr::arrange(dplyr::desc(numConcrvTst),dplyr::desc(mnScrTst)) |> 
+                  dplyr::filter(n>18,numConcrvTst>10) |> 
+                  dplyr::arrange(dplyr::desc(mnScrTst));
+    wtsUtilities::saveObj(dfrMnScrs,file.path(dirThs,"rda_Step3b3a.LnTweedieModels_MnScrs.RData"));
+  }
   
   #--compare top 5 models + base by scores
-  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  if (!exists("dfrScrs"))   dfrScrs   = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b2.LnTweedieModels_Scrs.RData"));
+  if (!exists("dfrMnScrs")) dfrMnScrs = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b3a.LnTweedieModels_MnScrs.RData"));
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"s(z)"));
   p1 = ggplot(dfrScrs |> dplyr::filter(smths %in% sel_mdls) |> 
                 dplyr::mutate(smths=factor(smths,levels=sel_mdls)),
               aes(x=smths,y=scrTst)) + geom_boxplot() + geom_point() + 
@@ -105,10 +109,11 @@ if (FALSE){
          wtsPlots::getStdTheme() + 
          theme(axis.text.x=element_text(size=12,angle=345,hjust=0),
                axis.title.x=element_blank());
+  p1;
   ggsave("pltBestModels.Females.LnTweedie.pdf",plot=p1,width=6.5,height=4)
   
   #--evaluate best model
-  best_smth = "ti(z)+ti(t)+ti(f)";#--user must determine this based on results above
+  best_smth = "s(z)+ti(t)+ti(f)";#--user must determine this based on results above
   best_idx  = (dfrMnScrs |> dplyr::filter(smths==best_smth))$i;
   best_mdl = evalBestModel(mdl,ks,best_idx);
   wtsUtilities::saveObj(best_mdl,file.path(dirThs,"rda_Step3b3b.LnTweedieModels_BestModel.RData"));
@@ -124,7 +129,7 @@ if (FALSE){
   plts1 = plotModelSmooths(best_mdl);
   
   grdPrd = list(z=lst$grids$z,d=lst$meds$d,t=lst$meds$t,f=lst$meds$f,s=lst$meds$s,h=factor("any"))
-  dfrPrd = prdMod(best_mdl,trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+  dfrPrd = prdMod(best_mdl,trms=c("(Intercept)","s(z)"),type="link",lst=grdPrd,p=0.10) |> 
             dplyr::mutate(emp_sel=exp(emp_sel),
                           lci=exp(lci),
                           uci=exp(uci));
@@ -143,7 +148,7 @@ if (FALSE){
   source(file.path(dirThs,"../r_PredictionsAndPlots.R"));
   mdl = mdl_ZE2D;
   dfrMnScrs = wtsUtilities::getObj(file.path(dirThs,"rda_Step3b3a.LnTweedieModels_MnScrs.RData"));
-  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"ti(z)"));
+  sel_mdls = unique(c(dfrMnScrs[1:5,"smths"]$smths,"s(z)"));
   grdPrd = list(z=lst$grids$z,d=lst$meds$d,t=lst$meds$t,f=lst$meds$f,s=lst$meds$s,h=factor("any"))
   lstMdls = list();
   for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
@@ -154,7 +159,7 @@ if (FALSE){
 
   lstPrd = list();
   for (sel_mdl in sel_mdls[!is.na(sel_mdls)]){
-    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","ti(z)"),type="link",lst=grdPrd,p=0.10) |> 
+    lstPrd[[sel_mdl]]  = prdMod(lstMdls[[sel_mdl]],trms=c("(Intercept)","s(z)"),type="link",lst=grdPrd,p=0.10) |> 
                            dplyr::mutate(trms=sel_mdl);
   }
   dfrPrd = dplyr::bind_rows(lstPrd) |> 
